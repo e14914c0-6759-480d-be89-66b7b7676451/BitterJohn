@@ -52,7 +52,7 @@ func NewUserContext(keys []Key) *UserContext {
 	return (*UserContext)(ctx)
 }
 
-func (s *Shadowsocks) GetUserContextOrInsert(userIP string) *UserContext {
+func (s *Server) GetUserContextOrInsert(userIP string) *UserContext {
 	userCtx, removed := s.userContextPool.Infra().GetOrInsert(userIP, func() (val interface{}) {
 		return NewUserContext(s.keys)
 	})

@@ -20,7 +20,7 @@ var (
 	ErrFailInitCihper = fmt.Errorf("fail to initiate cipher")
 )
 
-type CipherRW struct {
+type SSConn struct {
 	net.Conn
 	cipherConf CipherConf
 	masterKey  []byte
@@ -38,8 +38,8 @@ type CipherRW struct {
 	indexToRead int
 }
 
-func NewCipherRW(conn net.Conn, conf CipherConf, masterKey []byte) (crw *CipherRW) {
-	return &CipherRW{
+func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn) {
+	return &SSConn{
 		Conn:       conn,
 		cipherConf: conf,
 		masterKey:  masterKey,
@@ -48,11 +48,11 @@ func NewCipherRW(conn net.Conn, conf CipherConf, masterKey []byte) (crw *CipherR
 	}
 }
 
-func (c *CipherRW) Read(b []byte) (n int, err error) {
+func (c *SSConn) Read(b []byte) (n int, err error) {
 	c.onceRead.Do(func() {
 		var salt = pool.Get(c.cipherConf.SaltLen)
 		defer pool.Put(salt)
-		_, err = common.MustRead(c.Conn, salt)
+		n, err = io.ReadFull(c.Conn, salt)
 		if err != nil {
 			return
 		}
@@ -104,7 +104,7 @@ func (c *CipherRW) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (c *CipherRW) readChunk() ([]byte, error) {
+func (c *SSConn) readChunk() ([]byte, error) {
 	bufLen := pool.Get(2 + c.cipherConf.TagLen)
 	defer pool.Put(bufLen)
 	if _, err := io.ReadFull(c.Conn, bufLen); err != nil {
@@ -130,7 +130,7 @@ func (c *CipherRW) readChunk() ([]byte, error) {
 	return payload, nil
 }
 
-func (c *CipherRW) Write(b []byte) (n int, err error) {
+func (c *SSConn) Write(b []byte) (n int, err error) {
 	c.onceWrite.Do(func() {
 		var salt = pool.Get(c.cipherConf.SaltLen)
 		defer pool.Put(salt)
@@ -181,4 +181,31 @@ func (c *CipherRW) Write(b []byte) (n int, err error) {
 		n += nn
 	}
 	return len(b), err
+}
+
+func ShadowUDP(key Key, b []byte) (shadowBytes []byte, err error) {
+	cipherConf := CiphersConf[key.method]
+	var buf = pool.Get(cipherConf.SaltLen + len(b) + cipherConf.TagLen) // delay putting back
+	_, err = rand.Read(buf[:cipherConf.SaltLen])
+	if err != nil {
+		return
+	}
+	subKey := pool.Get(cipherConf.KeyLen)
+	defer pool.Put(subKey)
+	kdf := hkdf.New(
+		sha1.New,
+		key.masterKey,
+		buf[:cipherConf.SaltLen],
+		ReusedInfo,
+	)
+	_, err = io.ReadFull(kdf, subKey)
+	if err != nil {
+		return
+	}
+	ciph, err := cipherConf.NewCipher(subKey)
+	if err != nil {
+		return
+	}
+	_ = ciph.Seal(buf[cipherConf.SaltLen:cipherConf.SaltLen], ZeroNonce[:cipherConf.NonceLen], b, nil)
+	return buf, nil
 }

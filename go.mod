@@ -9,6 +9,7 @@ require (
 	github.com/stevenroose/gonfig v0.1.5
 	github.com/v2rayA/beego/v2 v2.0.4
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
+	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 )
 
 require (

@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/pkg/errors"
 	"io"
 	"net"
@@ -82,4 +83,35 @@ func NewSocksAddr(bytesAddr []byte) (*SocksAddr, error) {
 	default:
 		return nil, fmt.Errorf("%w: invalid type: %v", ErrInvalidAddress, addr.Type)
 	}
+}
+
+func (addr *SocksAddr) Bytes() (b []byte) {
+	poolBytes := addr.BytesFromPool()
+	b = make([]byte, len(poolBytes))
+	copy(b, poolBytes)
+	pool.Put(poolBytes)
+	return b
+}
+func (addr *SocksAddr) BytesFromPool() (b []byte) {
+	switch addr.Type {
+	case SocksTypeIPv4:
+		b = pool.Get(1 + 4 + 2)
+		copy(b[1:], net.ParseIP(addr.Hostname).To4()[:4])
+		binary.BigEndian.PutUint16(b[5:], addr.Port)
+	case SocksTypeIPv6:
+		b = pool.Get(1 + 16 + 2)
+		copy(b[1:], net.ParseIP(addr.Hostname)[:16])
+		binary.BigEndian.PutUint16(b[17:], addr.Port)
+	case SocksTypeDomain:
+		hostname := []byte(addr.Hostname)
+		lenDN := len(hostname)
+		b = pool.Get(1 + 1 + lenDN + 2)
+		b[1] = uint8(lenDN)
+		copy(b[2:], hostname)
+		binary.BigEndian.PutUint16(b[2+lenDN:], addr.Port)
+	case SocksTypeMsg:
+		// TODO:
+	}
+	b[0] = uint8(addr.Type)
+	return b
 }

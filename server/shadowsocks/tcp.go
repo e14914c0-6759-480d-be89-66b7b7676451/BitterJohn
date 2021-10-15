@@ -1,9 +1,8 @@
 package shadowsocks
 
 import (
-	"bufio"
 	"fmt"
-	"github.com/Qv2ray/mmp-go/cipher"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferredConn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"io"
@@ -17,29 +16,8 @@ const (
 	BasicLen = 32 + 2 + 16
 )
 
-type bufferedConn struct {
-	r        *bufio.Reader
-	net.Conn // So that most methods are embedded
-}
-
-func newBufferedConn(c net.Conn) bufferedConn {
-	return bufferedConn{bufio.NewReader(c), c}
-}
-
-func newBufferedConnSize(c net.Conn, n int) bufferedConn {
-	return bufferedConn{bufio.NewReaderSize(c, n), c}
-}
-
-func (b bufferedConn) Peek(n int) ([]byte, error) {
-	return b.r.Peek(n)
-}
-
-func (b bufferedConn) Read(p []byte) (int, error) {
-	return b.r.Read(p)
-}
-
-func (s *Shadowsocks) handleTCP(conn net.Conn) error {
-	bConn := newBufferedConn(conn)
+func (s *Server) handleTCP(conn net.Conn) error {
+	bConn := bufferredConn.NewBufferedConn(conn)
 	defer bConn.Close()
 	key, _ := s.authTCP(bConn)
 	if key == nil {
@@ -48,7 +26,7 @@ func (s *Shadowsocks) handleTCP(conn net.Conn) error {
 		_, err := io.Copy(io.Discard, conn)
 		return err
 	}
-	crw := NewCipherRW(bConn, CiphersConf[key.method], key.masterKey)
+	crw := NewSSConn(bConn, CiphersConf[key.method], key.masterKey)
 
 	// Read target
 	var firstTwoBytes = pool.Get(2)
@@ -101,7 +79,7 @@ func relayTCP(lConn, rConn net.Conn) (err error) {
 	return <-eCh
 }
 
-func (s *Shadowsocks) authTCP(conn bufferedConn) (key *Key, err error) {
+func (s *Server) authTCP(conn bufferredConn.BufferedConn) (key *Key, err error) {
 	var buf = pool.Get(BasicLen)
 	defer pool.Put(buf)
 	data, err := conn.Peek(BasicLen)
@@ -115,9 +93,9 @@ func (s *Shadowsocks) authTCP(conn bufferedConn) (key *Key, err error) {
 	return key, nil
 }
 
-func (s *Shadowsocks) probeTCP(buf []byte, data []byte, key Key) ([]byte, bool) {
+func (s *Server) probeTCP(buf []byte, data []byte, key Key) ([]byte, bool) {
 	//[salt][encrypted payload length][length tag][encrypted payload][payload tag]
-	conf := cipher.CiphersConf[key.method]
+	conf := CiphersConf[key.method]
 
 	salt := data[:conf.SaltLen]
 	cipherText := data[conf.SaltLen : conf.SaltLen+2+conf.TagLen]
