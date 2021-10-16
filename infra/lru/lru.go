@@ -54,6 +54,15 @@ func (l *LRU) Get(key interface{}) (value interface{}) {
 	return l.get(key)
 }
 
+func (l *LRU) GetKeys() (keys []interface{}) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	for k := range l.index {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func (l *LRU) get(key interface{}) (value interface{}) {
 	v, ok := l.index[key]
 	if !ok {

@@ -13,7 +13,7 @@ type UserContext lrulist.LruList
 func (ctx *UserContext) Auth(probe func(Key) ([]byte, bool)) (hit *Key, content []byte) {
 	lruList := ctx.Infra()
 	listCopy := lruList.GetListCopy()
-	defer lruList.GiveBackListCopy(listCopy)
+	defer lruList.DestroyListCopy(listCopy)
 	// probe every server
 	for i := range listCopy {
 		server := listCopy[i].Val.(Key)

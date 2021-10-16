@@ -67,23 +67,23 @@ func (l *LruList) GetListCopy() []*Node {
 	return list
 }
 
-// GiveBackListCopy should be called when the list copy is no longer used
-func (l *LruList) GiveBackListCopy(list []*Node) {
+// DestroyListCopy should be called when the list copy is no longer used
+func (l *LruList) DestroyListCopy(list []*Node) {
 	l.pool.Put(list)
 }
 
-// promote but lazy sort. O(1)
+// Promote promotes node but lazy sort. O(1)
 func (l *LruList) Promote(node *Node) {
 	atomic.AddUint32(&node.weight, 1)
 }
 
-// spend O(n) time to insert
-func (l *LruList) Insert(val interface{}) *Node {
-	node := &Node{Val: val}
+// Insert costs O(n+m) time
+func (l *LruList) Insert(vals []interface{}) []*Node {
+	var newWeight uint32
 	if l.insertStrategy == InsertFront {
-		node.weight = l.max + 1
+		newWeight = l.max + 1
 	} else {
-		node.weight = l.avg + 1
+		newWeight = l.avg + 1
 	}
 	l.muList.Lock()
 	defer l.muList.Unlock()
@@ -91,30 +91,34 @@ func (l *LruList) Insert(val interface{}) *Node {
 	// insert into a roughly right position
 	insertBefore := len(l.list)
 	for i := range l.list {
-		if l.list[i].weight < node.weight {
+		if l.list[i].weight < newWeight {
 			insertBefore = i
 			break
 		}
 	}
 
 	// expand the list
-	if cap(l.list) > len(l.list) {
-		l.list = l.list[:len(l.list)+1]
+	if cap(l.list) >= len(l.list)+len(vals) {
+		l.list = l.list[:len(l.list)+len(vals)]
 		for i := len(l.list) - 1; i > insertBefore; i-- {
-			l.list[i] = l.list[i-1]
+			l.list[i] = l.list[i-len(vals)]
 		}
-		l.list[insertBefore] = node
+		for i := 0; i < len(vals); i++ {
+			l.list[insertBefore+i] = &Node{Val: vals[i], weight: newWeight}
+		}
 	} else {
-		list := l.pool.Get(len(l.list) + 1)
+		list := l.pool.Get(len(l.list) + len(vals))
 		for i := len(l.list) - 1; i >= insertBefore; i-- {
-			list[i+1] = l.list[i]
+			list[i+len(vals)] = l.list[i]
 		}
-		list[insertBefore] = node
+		for i := 0; i < len(vals); i++ {
+			list[insertBefore+i] = &Node{Val: vals[i], weight: newWeight}
+		}
 		copy(list[:insertBefore], l.list[:insertBefore])
 		l.pool.Put(l.list)
 		l.list = list
 	}
-	return node
+	return l.list[insertBefore : insertBefore+len(vals)]
 }
 
 // O(n) scan to remove a node

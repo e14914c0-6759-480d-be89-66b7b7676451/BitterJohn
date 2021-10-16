@@ -8,11 +8,14 @@ import (
 )
 
 type Params struct {
-	LogLevel            string  `id:"log-level" default:"info" desc:"Optional values: trace, debug, info, warn or error"`
-	LogFile             string  `id:"log-file" desc:"The path of log file"`
-	LogMaxDays          int64   `id:"log-max-days" default:"3" desc:"Maximum number of days to keep log files"`
-	LogDisableColor     bool    `id:"log-disable-color"`
-	LogDisableTimestamp bool    `id:"log-disable-timestamp"`
+	Address             string `id:"address" short:"a" default:"0.0.0.0:8880" desc:"Address to listen at"`
+	SweetLisa           string `id:"sweet-lisa" short:"s" desc:"Address of SweetLisa"`
+	Ticket              string `id:"ticket" short:"t" desc:"Ticket from SweetLisa"`
+	LogLevel            string `id:"log-level" default:"info" desc:"Optional values: trace, debug, info, warn or error"`
+	LogFile             string `id:"log-file" desc:"The path of log file"`
+	LogMaxDays          int64  `id:"log-max-days" default:"3" desc:"Maximum number of days to keep log files"`
+	LogDisableColor     bool   `id:"log-disable-color"`
+	LogDisableTimestamp bool   `id:"log-disable-timestamp"`
 }
 
 var params Params
@@ -21,7 +24,7 @@ func initFunc() {
 	err := gonfig.Load(&params, gonfig.Conf{
 		FileDisable:       true,
 		FlagIgnoreUnknown: false,
-		EnvPrefix:         "LISA_",
+		EnvPrefix:         "JOHN_",
 	})
 	if err != nil {
 		if err.Error() != "unexpected word while parsing flags: '-test.v'" {

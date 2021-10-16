@@ -1,6 +1,10 @@
 package server
 
-import "io"
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
 
 type Server interface {
 	Listen(addr string) (err error)
@@ -10,6 +14,18 @@ type Server interface {
 	io.Closer
 }
 
-func Register() {
+type Creator func(users []User) Server
 
+var Mapper = make(map[string]Creator)
+
+func Register(name string, c Creator) {
+	Mapper[name] = c
+}
+
+func NewServer(name string, users []User) (Server, error) {
+	creator, ok := Mapper[name]
+	if !ok {
+		return nil, fmt.Errorf("no creator registered for %v", strconv.Quote(name))
+	}
+	return creator(users), nil
 }

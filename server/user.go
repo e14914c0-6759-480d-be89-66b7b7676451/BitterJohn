@@ -7,4 +7,6 @@ type User struct {
 	Password string
 	// Optional
 	Method string
+	// SweetLisa
+	Manager bool
 }
