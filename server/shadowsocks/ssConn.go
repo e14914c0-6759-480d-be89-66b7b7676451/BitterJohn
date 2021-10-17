@@ -10,7 +10,10 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/crypto/hkdf"
+	"hash"
+	"hash/fnv"
 	"io"
+	"math"
 	"net"
 	"sync"
 )
@@ -208,4 +211,70 @@ func ShadowUDP(key Key, b []byte) (shadowBytes []byte, err error) {
 	}
 	_ = ciph.Seal(buf[cipherConf.SaltLen:cipherConf.SaltLen], ZeroNonce[:cipherConf.NonceLen], b, nil)
 	return buf, nil
+}
+
+func (c *SSConn) ReadMetadata() (metadata *Metadata, err error) {
+	var firstTwoBytes = pool.Get(2)
+	_, err = io.ReadFull(c, firstTwoBytes)
+	n, err := BytesSizeForMetadata(firstTwoBytes)
+	if err != nil {
+		return nil, err
+	}
+	var bytesMetadata = pool.Get(n)
+	copy(bytesMetadata, firstTwoBytes)
+	_, err = io.ReadFull(c, bytesMetadata[2:])
+	if err != nil {
+		return nil, err
+	}
+	metadata, err = NewMetadata(bytesMetadata)
+	if err != nil {
+		return nil, err
+	}
+	return metadata, nil
+}
+
+func CalcFillerLen(masterKey []byte, reqBody []byte, req bool) (length int) {
+	maxFiller := int(10*float64(len(reqBody))/(1+math.Log(float64(len(reqBody))))) - len(reqBody)
+	var h hash.Hash32
+	if req {
+		h = fnv.New32a()
+	} else {
+		h = fnv.New32()
+	}
+	h.Write(masterKey)
+	h.Write(reqBody)
+	return int(h.Sum32()) % maxFiller
+}
+
+// GetTurn executes one msg request and get one response like HTTP
+func (c *SSConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error) {
+	go func() {
+		addr.Type = MetadataTypeMsg
+		lenFiller := CalcFillerLen(c.masterKey, reqBody, true)
+		addr.LenMsgBody = uint32(len(reqBody))
+		c.Write(addr.Bytes())
+		c.Write(reqBody)
+		filler := pool.Get(lenFiller)
+		defer pool.Put(filler)
+		c.Write(filler)
+	}()
+	respMeta, err := c.ReadMetadata()
+	if err != nil {
+		return nil, err
+	}
+	if respMeta.Type != MetadataTypeMsg || respMeta.Cmd != MetadataCmdResponse {
+		return nil, fmt.Errorf("%w: unexpected metadata type %v or cmd %v", ErrFailAuth, respMeta.Type, respMeta.Cmd)
+	}
+	// we know the body length but we should read all
+	resp = make([]byte, int(respMeta.LenMsgBody))
+	if _, err := io.ReadFull(c, resp); err != nil {
+		return nil, fmt.Errorf("%w: response body length is shorter than it should be", ErrFailAuth)
+	}
+	lenFiller := CalcFillerLen(c.masterKey, resp, false)
+	filler := pool.Get(lenFiller)
+	defer pool.Put(filler)
+	if _, err := io.ReadFull(c, filler); err != nil {
+		return nil, fmt.Errorf("%w: filler length is shorter than it should be", ErrFailAuth)
+	}
+	return resp, nil
 }

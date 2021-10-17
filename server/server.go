@@ -25,7 +25,7 @@ func Register(name string, c Creator) {
 func NewServer(name string, users []User) (Server, error) {
 	creator, ok := Mapper[name]
 	if !ok {
-		return nil, fmt.Errorf("no creator registered for %v", strconv.Quote(name))
+		return nil, fmt.Errorf("no server creator registered for %v", strconv.Quote(name))
 	}
 	return creator(users), nil
 }

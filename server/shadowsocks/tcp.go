@@ -1,10 +1,14 @@
 package shadowsocks
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferredConn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+	jsoniter "github.com/json-iterator/go"
 	"io"
 	"net"
 	"strconv"
@@ -15,6 +19,82 @@ const (
 	// BasicLen is the basic auth length of [salt][encrypted payload length][length tag][encrypted payload][payload tag]
 	BasicLen = 32 + 2 + 16
 )
+
+func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
+	if reqMetadata.Type != MetadataTypeMsg {
+		return fmt.Errorf("handleMsg: this connection is not for message")
+	}
+	// we know the body length but we should read all
+	var req = pool.Get(int(reqMetadata.LenMsgBody))
+	defer pool.Put(req)
+	if _, err := io.ReadFull(crw, req); err != nil {
+		return err
+	}
+	lenFiller := CalcFillerLen(key.masterKey, req, true)
+	var filler = pool.Get(lenFiller)
+	defer pool.Put(filler)
+	if _, err := io.ReadFull(crw, filler); err != nil {
+		return err
+	}
+
+	var respMeta = Metadata{
+		Type: MetadataTypeMsg,
+		Cmd:  MetadataCmdResponse,
+	}
+	var resp []byte
+	switch reqMetadata.Cmd {
+	case MetadataCmdPing:
+		if bytes.Equal(req, []byte("ping")) {
+			log.Warn("the body of received ping request is %v instead of %v", strconv.Quote(string(req)), strconv.Quote("ping"))
+		}
+
+		respMeta.LenMsgBody = 4
+		bAddr := respMeta.BytesFromPool()
+		defer pool.Put(bAddr)
+		crw.Write(bAddr)
+
+		resp = pool.Get(int(respMeta.LenMsgBody))
+		defer pool.Put(resp)
+		copy(resp, "pong")
+	case MetadataCmdSyncKeys:
+		var users []model.Argument
+		if err := jsoniter.Unmarshal(req, users); err != nil {
+			return err
+		}
+		var serverUsers []server.User
+		for _, u := range users {
+			serverUsers = append(serverUsers, server.User{
+				Username: u.Username,
+				Password: u.Password,
+				Method:   u.Method,
+				Manager:  false,
+			})
+		}
+		if err := s.RemoveUsers(s.Users()); err != nil {
+			return err
+		}
+		if err := s.AddUsers(serverUsers); err != nil {
+			return err
+		}
+
+		respMeta.LenMsgBody = 2
+		bAddr := respMeta.BytesFromPool()
+		defer pool.Put(bAddr)
+		crw.Write(bAddr)
+
+		resp = pool.Get(int(respMeta.LenMsgBody))
+		defer pool.Put(resp)
+		copy(resp, "OK")
+	default:
+		return fmt.Errorf("%w: unexpected metadata cmd type: %v", ErrFailAuth, reqMetadata.Cmd)
+	}
+
+	crw.Write(resp)
+	filler = pool.Get(CalcFillerLen(key.masterKey, resp, false))
+	defer pool.Put(filler)
+	crw.Write(filler)
+	return nil
+}
 
 func (s *Server) handleTCP(conn net.Conn) error {
 	bConn := bufferredConn.NewBufferedConn(conn)
@@ -29,23 +109,14 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	crw := NewSSConn(bConn, CiphersConf[key.method], key.masterKey)
 
 	// Read target
-	var firstTwoBytes = pool.Get(2)
-	_, err := io.ReadFull(crw, firstTwoBytes)
-	n, err := BytesSizeForSocksAddr(firstTwoBytes)
+	targetMetadata, err := crw.ReadMetadata()
 	if err != nil {
 		return err
 	}
-	var bytesSocksAddr = pool.Get(n)
-	copy(bytesSocksAddr, firstTwoBytes)
-	_, err = io.ReadFull(crw, bytesSocksAddr[2:])
-	if err != nil {
-		return err
+	if targetMetadata.Type == MetadataTypeMsg {
+		return s.handleMsg(crw, targetMetadata, key)
 	}
-	targetSocksAddr, err := NewSocksAddr(bytesSocksAddr)
-	if err != nil {
-		return err
-	}
-	target := net.JoinHostPort(targetSocksAddr.Hostname, strconv.Itoa(int(targetSocksAddr.Port)))
+	target := net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 
 	// Dial and relay
 	rConn, err := net.Dial("tcp", target)

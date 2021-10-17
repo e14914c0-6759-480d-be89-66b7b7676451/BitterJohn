@@ -25,7 +25,7 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 		return fmt.Errorf("dial target error: %w", err)
 	}
 
-	size, _ := BytesSizeForSocksAddr(plainText)
+	size, _ := BytesSizeForMetadata(plainText)
 	// send packet
 	if _, err = rc.Write(plainText[size:]); err != nil {
 		return fmt.Errorf("write error: %w", err)
@@ -35,7 +35,7 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 
 // select an appropriate timeout
 func selectTimeout(packet []byte) time.Duration {
-	al, _ := BytesSizeForSocksAddr(packet)
+	al, _ := BytesSizeForMetadata(packet)
 	if len(packet) < al {
 		// err: packet with inadequate length
 		return DefaultNatTimeout
@@ -62,11 +62,11 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	if key == nil {
 		return nil, nil, ErrFailAuth
 	}
-	targetSocksAddr, err := NewSocksAddr(plainText)
+	targetMetadata, err := NewMetadata(plainText)
 	if err != nil {
 		return nil, nil, err
 	}
-	target := net.JoinHostPort(targetSocksAddr.Hostname, strconv.Itoa(int(targetSocksAddr.Port)))
+	target := net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 
 	connIdent := lAddr.String() + "<->" + target
 	s.nm.Lock()
@@ -91,7 +91,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 		// relay
 		go func() {
-			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *key, targetSocksAddr)
+			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *key, targetMetadata)
 			s.nm.Lock()
 			s.nm.Remove(connIdent)
 			s.nm.Unlock()
@@ -113,7 +113,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	return rc, plainText, nil
 }
 
-func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, k Key, target *SocksAddr) (err error) {
+func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, k Key, target *Metadata) (err error) {
 	var (
 		n           int
 		shadowBytes []byte

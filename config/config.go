@@ -8,9 +8,12 @@ import (
 )
 
 type Params struct {
-	Address             string `id:"address" short:"a" default:"0.0.0.0:8880" desc:"Address to listen at"`
-	SweetLisa           string `id:"sweet-lisa" short:"s" desc:"Address of SweetLisa"`
+	Host                string `id:"host" short:"h"`
+	Port                int    `id:"port" short:"p"`
+	Listen              string `id:"listen" short:"l" default:"0.0.0.0:8880" desc:"Address to listen at"`
+	SweetLisa           string `id:"sweet-lisa" short:"s" desc:"Address of SweetLisa API"`
 	Ticket              string `id:"ticket" short:"t" desc:"Ticket from SweetLisa"`
+	Name                string `id:"name" short:"t" desc:"Server name to show"`
 	LogLevel            string `id:"log-level" default:"info" desc:"Optional values: trace, debug, info, warn or error"`
 	LogFile             string `id:"log-file" desc:"The path of log file"`
 	LogMaxDays          int64  `id:"log-max-days" default:"3" desc:"Maximum number of days to keep log files"`

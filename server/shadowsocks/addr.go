@@ -9,109 +9,122 @@ import (
 	"net"
 )
 
-type SocksType int
+type MetadataType int
 
 const (
-	SocksTypeReserved0 SocksType = iota
-	SocksTypeIPv4
-	SocksTypeReserved2
-	SocksTypeDomain
-	SocksTypeIPv6
-	SocksTypeMsg // A message from SweetLisa
+	MetadataTypeReserved0 MetadataType = iota
+	MetadataTypeIPv4
+	MetadataTypeReserved2
+	MetadataTypeDomain
+	MetadataTypeIPv6
+	// MetadataTypeMsg indicates it's a message from SweetLisa.
+	// [MetadataType(1)][MetadataCmd(1)]
+	MetadataTypeMsg
 )
 
-type SocksAddr struct {
-	Type     SocksType
-	Hostname string
-	Port     uint16
+type MetadataCmd uint8
+
+const (
+	MetadataCmdPing MetadataCmd = iota
+	MetadataCmdSyncKeys
+	MetadataCmdResponse
+)
+
+type Metadata struct {
+	Type       MetadataType
+	Hostname   string
+	Port       uint16
+	Cmd        MetadataCmd
+	LenMsgBody uint32
 }
 
 var (
 	ErrInvalidAddress = errors.Errorf("invalid address")
 )
 
-func BytesSizeForSocksAddr(firstTwoByte []byte) (int, error) {
+func BytesSizeForMetadata(firstTwoByte []byte) (int, error) {
 	if len(firstTwoByte) < 2 {
 		return 0, fmt.Errorf("%w: too short", ErrInvalidAddress)
 	}
-	switch SocksType(firstTwoByte[0]) {
-	case SocksTypeIPv4:
+	switch MetadataType(firstTwoByte[0]) {
+	case MetadataTypeIPv4:
 		return 1 + 4 + 2, nil
-	case SocksTypeIPv6:
+	case MetadataTypeIPv6:
 		return 1 + 16 + 2, nil
-	case SocksTypeDomain:
+	case MetadataTypeDomain:
 		lenDN := int(firstTwoByte[1])
 		return 1 + 1 + lenDN + 2, nil
-	case SocksTypeMsg:
-		// TODO:
-		return 0, nil
+	case MetadataTypeMsg:
+		return 1 + 1 + 4, nil
 	default:
 		return 0, fmt.Errorf("%w: invalid type: %v", ErrInvalidAddress, firstTwoByte[1])
 	}
 }
 
-func NewSocksAddr(bytesAddr []byte) (*SocksAddr, error) {
-	if len(bytesAddr) < 2 {
+func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
+	if len(bytesMetadata) < 2 {
 		return nil, io.ErrUnexpectedEOF
 	}
-	addr := new(SocksAddr)
-	addr.Type = SocksType(bytesAddr[0])
-	length, err := BytesSizeForSocksAddr(bytesAddr)
+	meta := new(Metadata)
+	meta.Type = MetadataType(bytesMetadata[0])
+	length, err := BytesSizeForMetadata(bytesMetadata)
 	if err != nil {
 		return nil, err
 	}
-	if len(bytesAddr) < length {
+	if len(bytesMetadata) < length {
 		return nil, fmt.Errorf("%w: too short", ErrInvalidAddress)
 	}
-	switch addr.Type {
-	case SocksTypeIPv4:
-		addr.Hostname = net.IP(bytesAddr[1:5]).String()
-		addr.Port = binary.BigEndian.Uint16(bytesAddr[5:])
-		return addr, nil
-	case SocksTypeIPv6:
-		addr.Hostname = net.IP(bytesAddr[1:17]).String()
-		addr.Port = binary.BigEndian.Uint16(bytesAddr[17:])
-		return addr, nil
-	case SocksTypeDomain:
-		lenDN := int(bytesAddr[1])
-		addr.Hostname = string(bytesAddr[2 : 2+lenDN])
-		addr.Port = binary.BigEndian.Uint16(bytesAddr[2+lenDN:])
-		return addr, nil
-	case SocksTypeMsg:
-		// TODO:
-		return addr, nil
+	switch meta.Type {
+	case MetadataTypeIPv4:
+		meta.Hostname = net.IP(bytesMetadata[1:5]).String()
+		meta.Port = binary.BigEndian.Uint16(bytesMetadata[5:])
+		return meta, nil
+	case MetadataTypeIPv6:
+		meta.Hostname = net.IP(bytesMetadata[1:17]).String()
+		meta.Port = binary.BigEndian.Uint16(bytesMetadata[17:])
+		return meta, nil
+	case MetadataTypeDomain:
+		lenDN := int(bytesMetadata[1])
+		meta.Hostname = string(bytesMetadata[2 : 2+lenDN])
+		meta.Port = binary.BigEndian.Uint16(bytesMetadata[2+lenDN:])
+		return meta, nil
+	case MetadataTypeMsg:
+		meta.Cmd = MetadataCmd(bytesMetadata[1])
+		meta.LenMsgBody = binary.BigEndian.Uint32(bytesMetadata[2:])
+		return meta, nil
 	default:
-		return nil, fmt.Errorf("%w: invalid type: %v", ErrInvalidAddress, addr.Type)
+		return nil, fmt.Errorf("%w: invalid type: %v", ErrInvalidAddress, meta.Type)
 	}
 }
 
-func (addr *SocksAddr) Bytes() (b []byte) {
-	poolBytes := addr.BytesFromPool()
+func (meta *Metadata) Bytes() (b []byte) {
+	poolBytes := meta.BytesFromPool()
 	b = make([]byte, len(poolBytes))
 	copy(b, poolBytes)
 	pool.Put(poolBytes)
 	return b
 }
-func (addr *SocksAddr) BytesFromPool() (b []byte) {
-	switch addr.Type {
-	case SocksTypeIPv4:
+func (meta *Metadata) BytesFromPool() (b []byte) {
+	switch meta.Type {
+	case MetadataTypeIPv4:
 		b = pool.Get(1 + 4 + 2)
-		copy(b[1:], net.ParseIP(addr.Hostname).To4()[:4])
-		binary.BigEndian.PutUint16(b[5:], addr.Port)
-	case SocksTypeIPv6:
+		copy(b[1:], net.ParseIP(meta.Hostname).To4()[:4])
+		binary.BigEndian.PutUint16(b[5:], meta.Port)
+	case MetadataTypeIPv6:
 		b = pool.Get(1 + 16 + 2)
-		copy(b[1:], net.ParseIP(addr.Hostname)[:16])
-		binary.BigEndian.PutUint16(b[17:], addr.Port)
-	case SocksTypeDomain:
-		hostname := []byte(addr.Hostname)
+		copy(b[1:], net.ParseIP(meta.Hostname)[:16])
+		binary.BigEndian.PutUint16(b[17:], meta.Port)
+	case MetadataTypeDomain:
+		hostname := []byte(meta.Hostname)
 		lenDN := len(hostname)
 		b = pool.Get(1 + 1 + lenDN + 2)
 		b[1] = uint8(lenDN)
 		copy(b[2:], hostname)
-		binary.BigEndian.PutUint16(b[2+lenDN:], addr.Port)
-	case SocksTypeMsg:
-		// TODO:
+		binary.BigEndian.PutUint16(b[2+lenDN:], meta.Port)
+	case MetadataTypeMsg:
+		b[1] = uint8(meta.Cmd)
+		binary.BigEndian.PutUint32(b[2:], meta.LenMsgBody)
 	}
-	b[0] = uint8(addr.Type)
+	b[0] = uint8(meta.Type)
 	return b
 }

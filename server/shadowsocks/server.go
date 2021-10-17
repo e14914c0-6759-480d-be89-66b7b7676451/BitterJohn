@@ -24,7 +24,6 @@ const (
 type Server struct {
 	// mutex protects keys
 	mutex           sync.Mutex
-	managerKey      *Key
 	keys            []Key
 	userContextPool *UserContextPool
 	listener        net.Listener
@@ -141,6 +140,9 @@ func Users2Keys(users []server.User) (keys []Key, managerKey *Key) {
 		}
 		keys[i].password = u.Password
 		keys[i].method = u.Method
+		if keys[i].method == "" {
+			keys[i].method = "chacha20-ietf-poly1305"
+		}
 		conf := CiphersConf[u.Method]
 		keys[i].masterKey = EVPBytesToKey(u.Password, conf.KeyLen)
 	}
@@ -154,13 +156,9 @@ func (s *Server) AddUsers(users []server.User) (err error) {
 	// update manager key
 	if managerKey != nil {
 		// remove manager key in UserContext
-		if s.managerKey != nil {
-			s.removeKeysFunc(func(key Key) (remove bool) {
-				return key.manager == true
-			})
-		}
-
-		s.managerKey = managerKey
+		s.removeKeysFunc(func(key Key) (remove bool) {
+			return key.manager == true
+		})
 	}
 	s.addKeys(keys)
 	return nil
