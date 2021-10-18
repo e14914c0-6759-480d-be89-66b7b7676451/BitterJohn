@@ -6,6 +6,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211016031441-3a50d1bea71d/go.mod h1:+6xonfiLNhZTz4GL2a9UGeSToJrlQ4hMA8CndJDiHzo=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c h1:/sXTLgYVU8DwzjMjprnoBliWB8gflusZsQKyUKXYGiU=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c/go.mod h1:ZkjgqJg7FRdqsW+4TY23oSxgQtYgKPToUodILj/4wCQ=
 github.com/gin-contrib/sse v0.1.0 h1:Y/yl/+YNO8GZSjAhjMsSuLt29uWRFHdHYUb5lYOV9qE=
 github.com/gin-contrib/sse v0.1.0/go.mod h1:RHrZQHXnP2xjPF+u1gW/2HnVO7nvIa9PG3Gm+fLHvGI=
 github.com/gin-gonic/gin v1.7.4 h1:QmUZXrvJ9qZ3GfWvQ+2wnW/1ePrTEJqPKMYEU3lD/DM=

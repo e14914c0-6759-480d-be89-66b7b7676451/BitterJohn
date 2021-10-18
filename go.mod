@@ -3,7 +3,7 @@ module github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
 go 1.17
 
 require (
-	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211016133834-016cbe5b2cc4
+	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c
 	github.com/json-iterator/go v1.1.12
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/pkg/errors v0.9.1
@@ -31,5 +31,3 @@ require (
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
-
-replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa

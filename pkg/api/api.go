@@ -23,7 +23,7 @@ func Register(endpointHost, chatIdentifier string, info model.Server) (users []s
 	endpoint := url.URL{
 		Scheme: "https",
 		Host:   endpointHost,
-		Path:   path.Join("api", chatIdentifier, "server", "register"),
+		Path:   path.Join("api", chatIdentifier, info.Ticket, "register"),
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint.String(), bytes.NewReader(b))
 	if err != nil {
