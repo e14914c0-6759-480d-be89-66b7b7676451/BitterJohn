@@ -21,6 +21,9 @@ const (
 )
 
 func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
+	if !key.manager {
+		return fmt.Errorf("handleMsg: illegal message received from a non-manager user")
+	}
 	if reqMetadata.Type != MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
 	}
@@ -30,10 +33,10 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 	if _, err := io.ReadFull(crw, req); err != nil {
 		return err
 	}
-	lenFiller := CalcFillerLen(key.masterKey, req, true)
-	var filler = pool.Get(lenFiller)
-	defer pool.Put(filler)
-	if _, err := io.ReadFull(crw, filler); err != nil {
+	lenPadding := CalcPaddingLen(key.masterKey, req, true)
+	var padding = pool.Get(lenPadding)
+	defer pool.Put(padding)
+	if _, err := io.ReadFull(crw, padding); err != nil {
 		return err
 	}
 
@@ -44,9 +47,10 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 	var resp []byte
 	switch reqMetadata.Cmd {
 	case MetadataCmdPing:
-		if bytes.Equal(req, []byte("ping")) {
-			log.Warn("the body of received ping request is %v instead of %v", strconv.Quote(string(req)), strconv.Quote("ping"))
+		if !bytes.Equal(req, []byte("ping")) {
+			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(req)), strconv.Quote("ping"))
 		}
+		s.lastAlive = time.Now()
 
 		respMeta.LenMsgBody = 4
 		bAddr := respMeta.BytesFromPool()
@@ -70,10 +74,8 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 				Manager:  false,
 			})
 		}
-		if err := s.RemoveUsers(s.Users()); err != nil {
-			return err
-		}
-		if err := s.AddUsers(serverUsers); err != nil {
+		// sweetLisa can replace the manager key here
+		if err := s.syncUsers(serverUsers); err != nil {
 			return err
 		}
 
@@ -90,9 +92,9 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 	}
 
 	crw.Write(resp)
-	filler = pool.Get(CalcFillerLen(key.masterKey, resp, false))
-	defer pool.Put(filler)
-	crw.Write(filler)
+	padding = pool.Get(CalcPaddingLen(key.masterKey, resp, false))
+	defer pool.Put(padding)
+	crw.Write(padding)
 	return nil
 }
 
@@ -106,7 +108,10 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		_, err := io.Copy(io.Discard, conn)
 		return err
 	}
-	crw := NewSSConn(bConn, CiphersConf[key.method], key.masterKey)
+	crw, err := NewSSConn(bConn, CiphersConf[key.method], key.masterKey)
+	if err != nil {
+		return err
+	}
 
 	// Read target
 	targetMetadata, err := crw.ReadMetadata()

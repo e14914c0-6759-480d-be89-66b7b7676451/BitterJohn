@@ -122,6 +122,7 @@ func (meta *Metadata) BytesFromPool() (b []byte) {
 		copy(b[2:], hostname)
 		binary.BigEndian.PutUint16(b[2+lenDN:], meta.Port)
 	case MetadataTypeMsg:
+		b = pool.Get(1 + 1 + 4)
 		b[1] = uint8(meta.Cmd)
 		binary.BigEndian.PutUint32(b[2:], meta.LenMsgBody)
 	}

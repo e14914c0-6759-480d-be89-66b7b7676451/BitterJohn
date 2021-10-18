@@ -41,14 +41,17 @@ type SSConn struct {
 	indexToRead int
 }
 
-func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn) {
+func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, err error) {
+	if conf.NewCipher == nil {
+		return nil, fmt.Errorf("invalid CipherConf")
+	}
 	return &SSConn{
 		Conn:       conn,
 		cipherConf: conf,
 		masterKey:  masterKey,
 		nonceRead:  make([]byte, conf.NonceLen),
 		nonceWrite: make([]byte, conf.NonceLen),
-	}
+	}, nil
 }
 
 func (c *SSConn) Read(b []byte) (n int, err error) {
@@ -233,8 +236,8 @@ func (c *SSConn) ReadMetadata() (metadata *Metadata, err error) {
 	return metadata, nil
 }
 
-func CalcFillerLen(masterKey []byte, reqBody []byte, req bool) (length int) {
-	maxFiller := int(10*float64(len(reqBody))/(1+math.Log(float64(len(reqBody))))) - len(reqBody)
+func CalcPaddingLen(masterKey []byte, reqBody []byte, req bool) (length int) {
+	maxPadding := common.Max(int(10*float64(len(reqBody))/(1+math.Log(float64(len(reqBody)))))-len(reqBody), 0)
 	var h hash.Hash32
 	if req {
 		h = fnv.New32a()
@@ -243,20 +246,20 @@ func CalcFillerLen(masterKey []byte, reqBody []byte, req bool) (length int) {
 	}
 	h.Write(masterKey)
 	h.Write(reqBody)
-	return int(h.Sum32()) % maxFiller
+	return int(h.Sum32()) % maxPadding
 }
 
 // GetTurn executes one msg request and get one response like HTTP
 func (c *SSConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error) {
 	go func() {
 		addr.Type = MetadataTypeMsg
-		lenFiller := CalcFillerLen(c.masterKey, reqBody, true)
+		lenPadding := CalcPaddingLen(c.masterKey, reqBody, true)
 		addr.LenMsgBody = uint32(len(reqBody))
 		c.Write(addr.Bytes())
 		c.Write(reqBody)
-		filler := pool.Get(lenFiller)
-		defer pool.Put(filler)
-		c.Write(filler)
+		padding := pool.Get(lenPadding)
+		defer pool.Put(padding)
+		c.Write(padding)
 	}()
 	respMeta, err := c.ReadMetadata()
 	if err != nil {
@@ -270,11 +273,11 @@ func (c *SSConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error)
 	if _, err := io.ReadFull(c, resp); err != nil {
 		return nil, fmt.Errorf("%w: response body length is shorter than it should be", ErrFailAuth)
 	}
-	lenFiller := CalcFillerLen(c.masterKey, resp, false)
-	filler := pool.Get(lenFiller)
-	defer pool.Put(filler)
-	if _, err := io.ReadFull(c, filler); err != nil {
-		return nil, fmt.Errorf("%w: filler length is shorter than it should be", ErrFailAuth)
+	lenPadding := CalcPaddingLen(c.masterKey, resp, false)
+	padding := pool.Get(lenPadding)
+	defer pool.Put(padding)
+	if _, err := io.ReadFull(c, padding); err != nil {
+		return nil, fmt.Errorf("%w: padding length is shorter than it should be", ErrFailAuth)
 	}
 	return resp, nil
 }

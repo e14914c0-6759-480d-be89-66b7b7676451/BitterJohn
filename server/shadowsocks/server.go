@@ -2,11 +2,14 @@ package shadowsocks
 
 import (
 	"errors"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	gonanoid2 "github.com/matoous/go-nanoid/v2"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+	gonanoid "github.com/matoous/go-nanoid"
 	"net"
 	"strconv"
 	"sync"
@@ -22,6 +25,11 @@ const (
 )
 
 type Server struct {
+	closed         chan struct{}
+	sweetLisaHost  string
+	chatIdentifier string
+	arg            server.Argument
+	lastAlive      time.Time
 	// mutex protects keys
 	mutex           sync.Mutex
 	keys            []Key
@@ -38,13 +46,93 @@ type Key struct {
 	manager   bool
 }
 
-func New(users []server.User) server.Server {
+func New(sweetLisaHost, chatIdentifier string, arg server.Argument) (server.Server, error) {
 	s := Server{
 		userContextPool: (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
 		nm:              NewUDPConnMapping(),
+		sweetLisaHost:   sweetLisaHost,
+		chatIdentifier:  chatIdentifier,
+		closed:          make(chan struct{}),
+		arg:             arg,
 	}
-	_ = s.AddUsers(users)
-	return &s
+	if err := s.AddUsers([]server.User{{Manager: true}}); err != nil {
+		return nil, err
+	}
+
+	// connect to SweetLisa and register
+	if err := s.register(); err != nil {
+		return nil, err
+	}
+	go s.registerBackground()
+	return &s, nil
+}
+
+func (s *Server) registerBackground() {
+	const interval = 10 * time.Second
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-s.closed:
+			ticker.Stop()
+			break
+		case <-ticker.C:
+			if time.Since(s.lastAlive) < server.LostThreshold {
+				continue
+			} else {
+				log.Warn("Lost connection with SweetLisa more than 5 minutes. Try to register again")
+			}
+			if err := s.register(); err != nil {
+				log.Warn("registerBackground: %v", err)
+			}
+			ticker.Reset(interval)
+		}
+	}
+}
+
+func (s *Server) register() error {
+	var manager server.User
+	users := s.Users()
+	for _, u := range users {
+		if u.Manager {
+			manager = u
+			break
+		}
+	}
+	users, err := api.Register(s.sweetLisaHost, s.chatIdentifier, model.Server{
+		Ticket: s.arg.Ticket,
+		Name:   s.arg.Name,
+		Host:   s.arg.Host,
+		Port:   s.arg.Port,
+		ManageArgument: model.Argument{
+			Protocol: "shadowsocks",
+			Username: manager.Username,
+			Password: manager.Password,
+			Method:   manager.Method,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	log.Info("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisaHost))
+	s.lastAlive = time.Now()
+	// sweetLisa can replace the manager key here
+	if err := s.syncUsers(users); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) syncUsers(users []server.User) (err error) {
+	toRemove, toAdd := common.Change(s.Users(), users, func(x interface{}) string {
+		return x.(server.User).Method + "|" + x.(server.User).Password
+	})
+	if err := s.RemoveUsers(toRemove.([]server.User), false); err != nil {
+		return err
+	}
+	if err := s.AddUsers(toAdd.([]server.User)); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) ListenTCP(addr string) (err error) {
@@ -118,6 +206,7 @@ func (s *Server) Listen(addr string) (err error) {
 }
 
 func (s *Server) Close() error {
+	close(s.closed)
 	err := s.listener.Close()
 	err2 := s.udpConn.Close()
 	if err2 != nil {
@@ -130,7 +219,7 @@ func Users2Keys(users []server.User) (keys []Key, managerKey *Key) {
 	keys = make([]Key, len(users))
 	for i, u := range users {
 		if u.Manager {
-			u.Password, _ = gonanoid2.New()
+			u.Password, _ = gonanoid.Generate(common.Alphabet, 21)
 			u.Method = "aes-256-gcm"
 			// allow only one manager
 			if managerKey == nil {
@@ -164,12 +253,15 @@ func (s *Server) AddUsers(users []server.User) (err error) {
 	return nil
 }
 
-func (s *Server) RemoveUsers(users []server.User) (err error) {
+func (s *Server) RemoveUsers(users []server.User, alsoManager bool) (err error) {
 	keys, _ := Users2Keys(users)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	var keySet map[string]struct{}
+	var keySet = make(map[string]struct{})
 	for _, key := range keys {
+		if key.manager && !alsoManager {
+			continue
+		}
 		k := key.method + "|" + key.password
 		keySet[k] = struct{}{}
 	}
