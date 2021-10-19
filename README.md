@@ -1,4 +1,5 @@
 # BitterJohn
+Server side infrastructure for RDA.
 
 ## Usage
 
