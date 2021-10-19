@@ -1,0 +1,19 @@
+[Unit]
+Description=BitterJohn service
+Documentation=https://github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
+After=network.target nss-lookup.target
+Wants=network.target nss-lookup.target
+
+[Service]
+Type=simple
+User=nobody
+Restart=always
+LimitNOFILE=102400
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+Environment="GODEBUG=madvdontneed=1{{range .Envs}} {{.Name}}={{.Value}}{{end}}"
+ExecStart=/usr/bin/BitterJohn --log-disable-timestamp
+
+[Install]
+WantedBy=multi-user.target

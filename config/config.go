@@ -10,7 +10,7 @@ import (
 type Params struct {
 	Host                string `id:"host"`
 	Port                int    `id:"port"`
-	Listen              string `id:"listen" default:"0.0.0.0:8880" desc:"Address to listen at"`
+	Listen              string `id:"listen" default:"0.0.0.0:8880" desc:"Address to listen on"`
 	SweetLisa           string `id:"sweet-lisa" desc:"The host of SweetLisa API endpoint"`
 	ChatIdentifier      string `id:"chat-identifier" desc:"The chat identifier to register"`
 	Ticket              string `id:"ticket" desc:"Ticket from SweetLisa"`
