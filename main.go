@@ -13,7 +13,7 @@ import (
 var f embed.FS
 
 func main() {
-	if len(os.Args) > 0 && os.Args[1] == "install" {
+	if len(os.Args) > 1 && os.Args[1] == "install" {
 		Install(os.Args, f)
 		return
 	}
