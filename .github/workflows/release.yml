@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+      - v*
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NAME: BitterJohn
+      DESC: "Server side infrastructure for RDA"
+    steps:
+
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Prepare
+        id: prep
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [[ "$REF" == "refs/tags/v"* ]]; then
+            tag=$(git describe --tags $(git rev-list --tags --max-count=1))
+            version=${tag:1}
+          else
+            date=$(git log -1 --format="%cd" --date=short | sed s/-//g)
+            count=$(git rev-list --count HEAD)
+            commit=$(git rev-parse --short HEAD)
+            version="unstable-$date.r${count}.$commit"
+          fi
+          echo ::set-output name=VERSION::"$version"
+          echo "VERSION=$version" >> $GITHUB_ENV
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.17
+      
+      - name: Build BitterJohn Binaries
+        run: |
+          for osarch in linux/386 linux/amd64 linux/arm linux/arm64; do
+            export GOOS=$(echo $osarch | cut -d/ -f1)
+            export GOARCH=$(echo $osarch | cut -d/ -f2)
+            CGO_ENABLED=0 go build -ldflags="-X github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config.Version=$VERSION -s -w" -o ../BitterJohn_"$GOOS"_"$GOARCH"_"$VERSION"
+          done
+      - name: Rename Binaries to Friendly Filenames
+        run: |
+          mv BitterJohn_linux_386_$VERSION BitterJohn_linux_x86_$VERSION
+          mv BitterJohn_linux_amd64_$VERSION BitterJohn_linux_x64_$VERSION
+      - name: Upload Artifact
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: nanoufo/action-upload-artifacts-and-release-assets@v1.4
+        with:
+          path: |
+            BitterJohn_linux_x86_${{ steps.prep.outputs.VERSION }}
+            BitterJohn_linux_x64_${{ steps.prep.outputs.VERSION }}
+            BitterJohn_linux_arm_${{ steps.prep.outputs.VERSION }}
+            BitterJohn_linux_arm64_${{ steps.prep.outputs.VERSION }}
+      - name: Github Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          prerelease: true
+          files: |
+            BitterJohn_linux_x86_${{ steps.prep.outputs.VERSION }}
+            BitterJohn_linux_x64_${{ steps.prep.outputs.VERSION }}
+            BitterJohn_linux_arm_${{ steps.prep.outputs.VERSION }}
+            BitterJohn_linux_arm64_${{ steps.prep.outputs.VERSION }}

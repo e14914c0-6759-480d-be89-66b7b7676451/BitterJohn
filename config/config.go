@@ -1,9 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/stevenroose/gonfig"
 	log2 "log"
+	"os"
 	"sync"
 )
 
@@ -20,8 +22,10 @@ type Params struct {
 	LogMaxDays          int64  `id:"log-max-days" default:"3" desc:"Maximum number of days to keep log files"`
 	LogDisableColor     bool   `id:"log-disable-color"`
 	LogDisableTimestamp bool   `id:"log-disable-timestamp"`
+	ShowVersion         bool   `id:"version" short:"v"`
 }
 
+var Version = "debug"
 var params Params
 var skipGonfig bool
 
@@ -37,6 +41,10 @@ func initFunc() {
 				log2.Fatal(err)
 			}
 		}
+	}
+	if params.ShowVersion {
+		fmt.Println(Version)
+		os.Exit(0)
 	}
 	logWay := "console"
 	if params.LogFile != "" {
