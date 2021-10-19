@@ -8,6 +8,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copyfile"
+	"github.com/google/uuid"
 	"github.com/manifoldco/promptui"
 	"log"
 	"math/rand"
@@ -49,7 +50,38 @@ func portValidator(str string) error {
 	return nil
 }
 
+func uuidValidator(str string) error {
+	e := fmt.Errorf("Invalid ChatIdentifier")
+	if _, err := uuid.Parse(str); err != nil {
+		return e
+	}
+	return nil
+}
+
+func minLengthValidatorFactory(minLength int) promptui.ValidateFunc {
+	return func(str string) error {
+		e := fmt.Errorf("Too short")
+		if len(str) < minLength {
+			return e
+		}
+		return nil
+	}
+}
+
+func addressValidator(str string) error {
+	e := fmt.Errorf("Invalid Adderss")
+	host, port, err := net.SplitHostPort(str)
+	if err != nil {
+		return e
+	}
+	if net.ParseIP(host) == nil {
+		return e
+	}
+	return portValidator(port)
+}
+
 func getParams() (*config.Params, error) {
+	rand.Seed(time.Now().Unix())
 	prompt := promptui.Prompt{
 		Label:    "Host of Sweet Lisa",
 		Validate: hostValidator,
@@ -59,7 +91,8 @@ func getParams() (*config.Params, error) {
 		return nil, err
 	}
 	prompt = promptui.Prompt{
-		Label: "Chat Identifier",
+		Label:    "Chat Identifier",
+		Validate: uuidValidator,
 	}
 	chatIdentifier, err := prompt.Run()
 	if err != nil {
@@ -78,7 +111,8 @@ func getParams() (*config.Params, error) {
 	}
 
 	prompt = promptui.Prompt{
-		Label: "Server Ticket",
+		Label:    "Server Ticket",
+		Validate: minLengthValidatorFactory(15),
 	}
 	ticket, err := prompt.Run()
 	if err != nil {
@@ -89,6 +123,7 @@ func getParams() (*config.Params, error) {
 		Label:     "Address to listen on",
 		Default:   "0.0.0.0:" + strconv.Itoa(1024+rand.Intn(30000)),
 		AllowEdit: true,
+		Validate:  addressValidator,
 	}
 	address, err := prompt.Run()
 	if err != nil {
@@ -121,7 +156,8 @@ func getParams() (*config.Params, error) {
 	port, _ := strconv.Atoi(strPort)
 
 	prompt = promptui.Prompt{
-		Label: "Server Name to show",
+		Label:    "Server Name to show",
+		Validate: minLengthValidatorFactory(5),
 	}
 	name, err := prompt.Run()
 	if err != nil {
