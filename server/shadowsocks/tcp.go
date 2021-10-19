@@ -99,7 +99,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 }
 
 func (s *Server) handleTCP(conn net.Conn) error {
-	bConn := bufferredConn.NewBufferedConn(conn)
+	bConn := bufferredConn.NewBufferedConnSize(conn, MTUTrie.GetMTU(conn.LocalAddr().(*net.UDPAddr).IP))
 	defer bConn.Close()
 	key, _ := s.authTCP(bConn)
 	if key == nil {

@@ -7,24 +7,20 @@ import (
 const Alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
 
 func BytesIncBigEndian(b []byte) {
-	i := len(b) - 1
-	for i >= 0 && b[i] == 255 {
-		b[i] = 0
-		i--
-	}
-	if i >= 0 {
+	for i := len(b) - 1;i >= 0; i-- {
 		b[i]++
+		if b[i] != 0 {
+			break
+		}
 	}
 }
 
 func BytesIncLittleEndian(b []byte) {
-	i := 0
-	for i < len(b) && b[i] == 255 {
-		b[i] = 0
-		i++
-	}
-	if i < len(b) {
+	for i := 0; i < len(b); i++ {
 		b[i]++
+		if b[i] != 0 {
+			break
+		}
 	}
 }
 
