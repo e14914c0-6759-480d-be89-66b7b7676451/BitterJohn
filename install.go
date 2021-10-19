@@ -197,6 +197,6 @@ func Install(args []string, f embed.FS) {
 		log.Fatal(err)
 	}
 	log.Println("Installed successfully!")
-	log.Println("Run: systemctl enable --now BitterJohn.serivce")
+	log.Println("Run: systemctl enable --now BitterJohn")
 	return
 }
