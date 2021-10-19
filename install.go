@@ -86,8 +86,9 @@ func getParams() (*config.Params, error) {
 	}
 
 	prompt = promptui.Prompt{
-		Label:   "Address to listen on",
-		Default: "0.0.0.0:" + strconv.Itoa(1024+rand.Intn(30000)),
+		Label:     "Address to listen on",
+		Default:   "0.0.0.0:" + strconv.Itoa(1024+rand.Intn(30000)),
+		AllowEdit: true,
 	}
 	address, err := prompt.Run()
 	if err != nil {
@@ -108,9 +109,10 @@ func getParams() (*config.Params, error) {
 	}
 
 	prompt = promptui.Prompt{
-		Label:    "Port to show",
-		Default:  listenPort,
-		Validate: portValidator,
+		Label:     "Port to show",
+		Default:   listenPort,
+		Validate:  portValidator,
+		AllowEdit: true,
 	}
 	strPort, err := prompt.Run()
 	if err != nil {
@@ -195,6 +197,6 @@ func Install(args []string, f embed.FS) {
 		log.Fatal(err)
 	}
 	log.Println("Installed successfully!")
-	log.Println("Run: systemctl enable --now BitterJohn")
+	log.Println("Run: systemctl enable --now BitterJohn.serivce")
 	return
 }
