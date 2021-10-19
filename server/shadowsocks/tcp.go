@@ -126,6 +126,10 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	// Dial and relay
 	rConn, err := net.Dial("tcp", target)
 	if err != nil {
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			log.Debug("%v", err)
+			return nil // ignore i/o timeout
+		}
 		return err
 	}
 	if err = relayTCP(crw, rConn); err != nil {
