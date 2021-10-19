@@ -27,6 +27,8 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 	if reqMetadata.Type != MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
 	}
+	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
+
 	// we know the body length but we should read all
 	var req = pool.Get(int(reqMetadata.LenMsgBody))
 	defer pool.Put(req)
@@ -79,7 +81,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 			serverUsers = append(serverUsers, user)
 		}
 		// sweetLisa can replace the manager key here
-		if err := s.syncUsers(serverUsers); err != nil {
+		if err := s.SyncUsers(serverUsers); err != nil {
 			return err
 		}
 

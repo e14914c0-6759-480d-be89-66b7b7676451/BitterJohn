@@ -118,13 +118,14 @@ func (s *Server) register() error {
 	log.Alert("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisaHost))
 	s.lastAlive = time.Now()
 	// sweetLisa can replace the manager key here
-	if err := s.syncUsers(users); err != nil {
+	if err := s.SyncUsers(users); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Server) syncUsers(users []server.User) (err error) {
+func (s *Server) SyncUsers(users []server.User) (err error) {
+	log.Trace("SyncUsers: %v", users)
 	toRemove, toAdd := common.Change(s.Users(), users, func(x interface{}) string {
 		return x.(server.User).Method + "|" + x.(server.User).Password
 	})

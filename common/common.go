@@ -68,5 +68,5 @@ func Change(from interface{}, to interface{}, keyFunc func(elem interface{}) str
 			vToAdd = reflect.Append(vToAdd, vTo.Index(i))
 		}
 	}
-	return vFrom.Interface(), vToAdd.Interface()
+	return vToRemove.Interface(), vToAdd.Interface()
 }

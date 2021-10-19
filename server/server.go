@@ -21,6 +21,7 @@ type Server interface {
 	Listen(addr string) (err error)
 	AddUsers(users []User) (err error)
 	RemoveUsers(users []User, alsoManager bool) (err error)
+	SyncUsers(users []User) (err error)
 	Users() (users []User)
 	io.Closer
 }
