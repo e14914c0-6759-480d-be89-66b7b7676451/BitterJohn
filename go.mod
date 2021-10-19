@@ -4,13 +4,13 @@ go 1.17
 
 require (
 	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c
+	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.8.0
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/stevenroose/gonfig v0.1.5
 	github.com/v2rayA/beego/v2 v2.0.4
-	github.com/weppos/publicsuffix-go v0.15.0
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 
@@ -36,6 +36,5 @@ require (
 	github.com/shiena/ansicolor v0.0.0-20200904210342-c7312218db18 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
-	golang.org/x/text v0.3.3 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
