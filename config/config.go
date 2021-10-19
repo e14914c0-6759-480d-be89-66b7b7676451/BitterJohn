@@ -17,7 +17,7 @@ type Params struct {
 	ChatIdentifier      string `id:"chat-identifier" desc:"The chat identifier to register"`
 	Ticket              string `id:"ticket" desc:"Ticket from SweetLisa"`
 	Name                string `id:"name" desc:"Server name to register"`
-	LogLevel            string `id:"log-level" default:"info" desc:"Optional values: trace, debug, info, warn or error"`
+	LogLevel            string `id:"log-level" default:"warn" desc:"Optional values: trace, debug, info, warn or error"`
 	LogFile             string `id:"log-file" desc:"The path of log file"`
 	LogMaxDays          int64  `id:"log-max-days" default:"3" desc:"Maximum number of days to keep log files"`
 	LogDisableColor     bool   `id:"log-disable-color"`

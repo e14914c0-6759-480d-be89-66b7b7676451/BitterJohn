@@ -113,7 +113,7 @@ func (s *Server) register() error {
 	if err != nil {
 		return err
 	}
-	log.Info("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisaHost))
+	log.Alert("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisaHost))
 	s.lastAlive = time.Now()
 	// sweetLisa can replace the manager key here
 	if err := s.syncUsers(users); err != nil {
@@ -149,7 +149,7 @@ func (s *Server) ListenTCP(addr string) (err error) {
 		go func() {
 			err := s.handleTCP(conn)
 			if err != nil {
-				log.Warn("handleTCP: %v", err)
+				log.Info("handleTCP: %v", err)
 			}
 		}()
 	}

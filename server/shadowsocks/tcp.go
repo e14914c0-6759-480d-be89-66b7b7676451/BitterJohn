@@ -104,7 +104,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	key, _ := s.authTCP(bConn)
 	if key == nil {
 		// Auth fail. Drain the conn
-		log.Warn("Auth fail. Drain the conn from: %v", conn.RemoteAddr().String())
+		log.Info("Auth fail. Drain the conn from: %v", conn.RemoteAddr().String())
 		_, err := io.Copy(io.Discard, conn)
 		return err
 	}
