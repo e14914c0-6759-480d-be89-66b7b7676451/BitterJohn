@@ -98,17 +98,6 @@ func getParams() (*config.Params, error) {
 	if err != nil {
 		return nil, err
 	}
-	sel := promptui.Select{
-		Label: "Server Type",
-		Items: []string{
-			"Server",
-			//"Relay",
-		},
-	}
-	_, _, err = sel.Run()
-	if err != nil {
-		return nil, err
-	}
 
 	prompt = promptui.Prompt{
 		Label:    "Server Ticket",

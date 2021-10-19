@@ -9,4 +9,6 @@ type User struct {
 	Method string
 	// SweetLisa
 	Manager bool
+	// Required for relay
+	ForwardTo string
 }

@@ -39,12 +39,12 @@ type Metadata struct {
 }
 
 var (
-	ErrInvalidAddress = errors.Errorf("invalid address")
+	ErrInvalidMetadata = errors.Errorf("invalid metadata")
 )
 
 func BytesSizeForMetadata(firstTwoByte []byte) (int, error) {
 	if len(firstTwoByte) < 2 {
-		return 0, fmt.Errorf("%w: too short", ErrInvalidAddress)
+		return 0, fmt.Errorf("%w: too short", ErrInvalidMetadata)
 	}
 	switch MetadataType(firstTwoByte[0]) {
 	case MetadataTypeIPv4:
@@ -57,7 +57,7 @@ func BytesSizeForMetadata(firstTwoByte []byte) (int, error) {
 	case MetadataTypeMsg:
 		return 1 + 1 + 4, nil
 	default:
-		return 0, fmt.Errorf("%w: invalid type: %v", ErrInvalidAddress, firstTwoByte[1])
+		return 0, fmt.Errorf("%w: invalid type: %v", ErrInvalidMetadata, firstTwoByte[1])
 	}
 }
 
@@ -72,7 +72,7 @@ func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
 		return nil, err
 	}
 	if len(bytesMetadata) < length {
-		return nil, fmt.Errorf("%w: too short", ErrInvalidAddress)
+		return nil, fmt.Errorf("%w: too short", ErrInvalidMetadata)
 	}
 	switch meta.Type {
 	case MetadataTypeIPv4:
@@ -93,7 +93,7 @@ func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
 		meta.LenMsgBody = binary.BigEndian.Uint32(bytesMetadata[2:])
 		return meta, nil
 	default:
-		return nil, fmt.Errorf("%w: invalid type: %v", ErrInvalidAddress, meta.Type)
+		return nil, fmt.Errorf("%w: invalid type: %v", ErrInvalidMetadata, meta.Type)
 	}
 }
 

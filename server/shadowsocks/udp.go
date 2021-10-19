@@ -17,7 +17,7 @@ const (
 
 func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 	// get conn or dial and relay
-	rc, plainText, err := s.GetOrBuildUCPConn(lAddr, data[:n])
+	rc, key, plainText, err := s.GetOrBuildUCPConn(lAddr, data[:n])
 	if err != nil {
 		if err == ErrFailAuth {
 			return nil
@@ -26,9 +26,16 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 	}
 
 	size, _ := BytesSizeForMetadata(plainText)
-	// send packet
-	if _, err = rc.Write(plainText[size:]); err != nil {
-		return fmt.Errorf("write error: %w", err)
+	if key.forwardTo == "" {
+		// send packet to target
+		if _, err = rc.Write(plainText[size:]); err != nil {
+			return fmt.Errorf("write error: %w", err)
+		}
+	} else {
+		// send raw packet to the next ss server
+		if _, err = rc.Write(data[:n]); err != nil {
+			return fmt.Errorf("write error: %w", err)
+		}
 	}
 	return nil
 }
@@ -48,7 +55,7 @@ func selectTimeout(packet []byte) time.Duration {
 	return DnsQueryTimeout
 }
 
-func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, plainText []byte, err error) {
+func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, key *Key, plainText []byte, err error) {
 	var conn *UDPConn
 	var ok bool
 
@@ -58,15 +65,22 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	buf := pool.Get(len(data))
 	defer pool.Put(buf)
 	// auth every key
-	key, plainText := s.authUDP(buf, data, userContext)
+	key, plainText = s.authUDP(buf, data, userContext)
 	if key == nil {
-		return nil, nil, ErrFailAuth
+		return nil, nil, nil, ErrFailAuth
 	}
-	targetMetadata, err := NewMetadata(plainText)
-	if err != nil {
-		return nil, nil, err
+	var target string
+	var targetMetadata *Metadata
+	if key.forwardTo == "" {
+		targetMetadata, err = NewMetadata(plainText)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
+	} else {
+		targetMetadata = nil
+		target = key.forwardTo
 	}
-	target := net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 
 	connIdent := lAddr.String() + "<->" + target
 	s.nm.Lock()
@@ -81,7 +95,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 			s.nm.Lock()
 			s.nm.Remove(connIdent) // close channel to inform that establishment ends
 			s.nm.Unlock()
-			return nil, nil, fmt.Errorf("GetOrBuildUCPConn dial error: %w", err)
+			return nil, nil, nil, fmt.Errorf("GetOrBuildUCPConn dial error: %w", err)
 		}
 		rc = rConn.(*net.UDPConn)
 		s.nm.Lock()
@@ -110,7 +124,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	}
 	// countdown
 	_ = conn.UDPConn.SetReadDeadline(time.Now().Add(conn.timeout))
-	return rc, plainText, nil
+	return rc, key, plainText, nil
 }
 
 func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, k Key, target *Metadata) (err error) {
@@ -118,7 +132,13 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 		n           int
 		shadowBytes []byte
 	)
-	bytesTarget := target.BytesFromPool()
+	var bytesTarget []byte
+	if target == nil {
+		// forward to another ss server
+		bytesTarget = nil
+	} else {
+		bytesTarget = target.BytesFromPool()
+	}
 	targetLen := len(bytesTarget)
 	buf := pool.Get(targetLen + MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)
@@ -132,7 +152,11 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(DefaultNatTimeout)) // should keep consistent
 
-		shadowBytes, err = ShadowUDP(k, buf[:targetLen+n])
+		if target == nil {
+			shadowBytes = buf[:targetLen+n]
+		} else {
+			shadowBytes, err = ShadowUDP(k, buf[:targetLen+n])
+		}
 		if err != nil {
 			log.Warn("relay: ShadowUDP: %v", err)
 			continue

@@ -61,18 +61,22 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 		defer pool.Put(resp)
 		copy(resp, "pong")
 	case MetadataCmdSyncKeys:
-		var users []model.Argument
-		if err := jsoniter.Unmarshal(req, users); err != nil {
+		var keys []model.Server
+		if err := jsoniter.Unmarshal(req, &keys); err != nil {
 			return err
 		}
 		var serverUsers []server.User
-		for _, u := range users {
-			serverUsers = append(serverUsers, server.User{
-				Username: u.Username,
-				Password: u.Password,
-				Method:   u.Method,
+		for _, u := range keys {
+			var user = server.User{
+				Username: u.Argument.Username,
+				Password: u.Argument.Password,
+				Method:   u.Argument.Method,
 				Manager:  false,
-			})
+			}
+			if u.Host != "" {
+				user.ForwardTo = net.JoinHostPort(u.Host, strconv.Itoa(u.Port))
+			}
+			serverUsers = append(serverUsers, user)
 		}
 		// sweetLisa can replace the manager key here
 		if err := s.syncUsers(serverUsers); err != nil {
@@ -99,7 +103,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 }
 
 func (s *Server) handleTCP(conn net.Conn) error {
-	bConn := bufferredConn.NewBufferedConnSize(conn, MTUTrie.GetMTU(conn.LocalAddr().(*net.UDPAddr).IP))
+	bConn := bufferredConn.NewBufferedConnSize(conn, MTUTrie.GetMTU(conn.LocalAddr().(*net.TCPAddr).IP))
 	defer bConn.Close()
 	key, _ := s.authTCP(bConn)
 	if key == nil {
@@ -108,20 +112,27 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		_, err := io.Copy(io.Discard, conn)
 		return err
 	}
-	crw, err := NewSSConn(bConn, CiphersConf[key.method], key.masterKey)
-	if err != nil {
-		return err
+	var target string
+	var lConn net.Conn
+	if key.forwardTo == "" {
+		crw, err := NewSSConn(bConn, CiphersConf[key.method], key.masterKey)
+		if err != nil {
+			return err
+		}
+		// Read target
+		targetMetadata, err := crw.ReadMetadata()
+		if err != nil {
+			return err
+		}
+		if targetMetadata.Type == MetadataTypeMsg {
+			return s.handleMsg(crw, targetMetadata, key)
+		}
+		lConn = crw
+		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
+	} else {
+		lConn = bConn
+		target = key.forwardTo
 	}
-
-	// Read target
-	targetMetadata, err := crw.ReadMetadata()
-	if err != nil {
-		return err
-	}
-	if targetMetadata.Type == MetadataTypeMsg {
-		return s.handleMsg(crw, targetMetadata, key)
-	}
-	target := net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 
 	// Dial and relay
 	rConn, err := net.Dial("tcp", target)
@@ -132,7 +143,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		}
 		return err
 	}
-	if err = relayTCP(crw, rConn); err != nil {
+	if err = relayTCP(lConn, rConn); err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			return nil // ignore i/o timeout
 		}

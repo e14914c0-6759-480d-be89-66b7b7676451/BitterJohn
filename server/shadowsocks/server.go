@@ -28,6 +28,7 @@ type Server struct {
 	closed         chan struct{}
 	sweetLisaHost  string
 	chatIdentifier string
+	typ            string
 	arg            server.Argument
 	lastAlive      time.Time
 	// mutex protects keys
@@ -44,6 +45,7 @@ type Key struct {
 	method    string
 	masterKey []byte
 	manager   bool
+	forwardTo string
 }
 
 func New(sweetLisaHost, chatIdentifier string, arg server.Argument) (server.Server, error) {
@@ -103,7 +105,7 @@ func (s *Server) register() error {
 		Name:   s.arg.Name,
 		Host:   s.arg.Host,
 		Port:   s.arg.Port,
-		ManageArgument: model.Argument{
+		Argument: model.Argument{
 			Protocol: "shadowsocks",
 			Username: manager.Username,
 			Password: manager.Password,
@@ -227,6 +229,7 @@ func Users2Keys(users []server.User) (keys []Key, managerKey *Key) {
 				managerKey = &keys[i]
 			}
 		}
+		keys[i].forwardTo = u.ForwardTo
 		keys[i].password = u.Password
 		keys[i].method = u.Method
 		if keys[i].method == "" {
@@ -239,6 +242,7 @@ func Users2Keys(users []server.User) (keys []Key, managerKey *Key) {
 }
 
 func (s *Server) AddUsers(users []server.User) (err error) {
+	log.Trace("AddUsers: %v", users)
 	keys, managerKey := Users2Keys(users)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -254,6 +258,7 @@ func (s *Server) AddUsers(users []server.User) (err error) {
 }
 
 func (s *Server) RemoveUsers(users []server.User, alsoManager bool) (err error) {
+	log.Trace("RemoveUsers: %v, alsoManager: %v", users, alsoManager)
 	keys, _ := Users2Keys(users)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

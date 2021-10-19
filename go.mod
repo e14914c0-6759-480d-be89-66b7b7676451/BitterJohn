@@ -19,6 +19,7 @@ require (
 require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
+	github.com/eknkc/basex v1.0.1 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/gin v1.7.4 // indirect
 	github.com/go-playground/locales v0.13.0 // indirect
@@ -38,3 +39,5 @@ require (
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
+
+replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c => ../SweetLisa
