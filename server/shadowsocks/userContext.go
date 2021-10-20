@@ -54,6 +54,8 @@ func NewUserContext(passages []Passage) *UserContext {
 
 func (s *Server) GetUserContextOrInsert(userIP string) *UserContext {
 	userCtx, removed := s.userContextPool.Infra().GetOrInsert(userIP, func() (val interface{}) {
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
 		return NewUserContext(s.passages)
 	})
 	for _, ev := range removed {
