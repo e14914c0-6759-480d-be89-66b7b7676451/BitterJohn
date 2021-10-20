@@ -8,9 +8,9 @@ Server and relay side infrastructure for RDA.
 systemctl enable --now BitterJohn.serivce
 ```
 
-`Host of Sweet Lisa`: The Host fo SweetLisa. Such as "sweetlisa.tuta.cc".
+`Host of Sweet Lisa`: The Host of SweetLisa. Such as "sweetlisa.tuta.cc".
 
-`Chat Identifier`: It is the UUID of a group. Such as "e14914c0-6759-480d-be89-66b7b7676451".
+`Chat Identifier`: The UUID of a group. Such as "e14914c0-6759-480d-be89-66b7b7676451".
 
 `Server Ticket`: The ticket of the server. It should be unique for every servers. The type of ticket determines whether the server is a relay or an outbound server.
 

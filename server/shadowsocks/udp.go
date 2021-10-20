@@ -26,7 +26,7 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 	}
 
 	size, _ := BytesSizeForMetadata(plainText)
-	if key.forwardTo == "" {
+	if key.Out == nil {
 		// send packet to target
 		if _, err = rc.Write(plainText[size:]); err != nil {
 			return fmt.Errorf("write error: %w", err)
@@ -55,7 +55,7 @@ func selectTimeout(packet []byte) time.Duration {
 	return DnsQueryTimeout
 }
 
-func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, key *Key, plainText []byte, err error) {
+func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, passage *Passage, plainText []byte, err error) {
 	var conn *UDPConn
 	var ok bool
 
@@ -65,13 +65,13 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	buf := pool.Get(len(data))
 	defer pool.Put(buf)
 	// auth every key
-	key, plainText = s.authUDP(buf, data, userContext)
-	if key == nil {
+	passage, plainText = s.authUDP(buf, data, userContext)
+	if passage == nil {
 		return nil, nil, nil, ErrFailAuth
 	}
 	var target string
 	var targetMetadata *Metadata
-	if key.forwardTo == "" {
+	if passage.Out == nil {
 		targetMetadata, err = NewMetadata(plainText)
 		if err != nil {
 			return nil, nil, nil, err
@@ -79,7 +79,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 	} else {
 		targetMetadata = nil
-		target = key.forwardTo
+		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
 	}
 
 	connIdent := lAddr.String() + "<->" + target
@@ -105,7 +105,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 		// relay
 		go func() {
-			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *key, targetMetadata)
+			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *passage, targetMetadata)
 			s.nm.Lock()
 			s.nm.Remove(connIdent)
 			s.nm.Unlock()
@@ -124,10 +124,10 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	}
 	// countdown
 	_ = conn.UDPConn.SetReadDeadline(time.Now().Add(conn.timeout))
-	return rc, key, plainText, nil
+	return rc, passage, plainText, nil
 }
 
-func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, k Key, target *Metadata) (err error) {
+func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, k Passage, target *Metadata) (err error) {
 	var (
 		n           int
 		shadowBytes []byte
@@ -155,7 +155,10 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 		if target == nil {
 			shadowBytes = buf[:targetLen+n]
 		} else {
-			shadowBytes, err = ShadowUDP(k, buf[:targetLen+n])
+			shadowBytes, err = ShadowUDP(Key{
+				CipherConf: CiphersConf[k.In.Method],
+				MasterKey:  k.inMasterKey,
+			}, buf[:targetLen+n])
 		}
 		if err != nil {
 			log.Warn("relay: ShadowUDP: %v", err)
@@ -170,18 +173,18 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 	}
 }
 
-func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (hit *Key, content []byte) {
+func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (hit *Passage, content []byte) {
 	if len(data) < BasicLen {
 		return nil, nil
 	}
-	return userContext.Auth(func(key Key) ([]byte, bool) {
-		return probeUDP(buf, data, key)
+	return userContext.Auth(func(passage Passage) ([]byte, bool) {
+		return probeUDP(buf, data, passage)
 	})
 }
 
-func probeUDP(buf []byte, data []byte, server Key) (content []byte, ok bool) {
+func probeUDP(buf []byte, data []byte, server Passage) (content []byte, ok bool) {
 	//[salt][encrypted payload][tag]
-	conf := CiphersConf[server.method]
+	conf := CiphersConf[server.In.Method]
 	if len(data) < conf.SaltLen+conf.TagLen {
 		return nil, false
 	}
@@ -190,5 +193,5 @@ func probeUDP(buf []byte, data []byte, server Key) (content []byte, ok bool) {
 
 	subKey := pool.Get(conf.KeyLen)[:0]
 	defer pool.Put(subKey)
-	return conf.Verify(buf, server.masterKey, salt, cipherText, &subKey)
+	return conf.Verify(buf, server.inMasterKey, salt, cipherText, &subKey)
 }

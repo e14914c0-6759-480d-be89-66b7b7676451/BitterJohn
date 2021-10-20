@@ -31,21 +31,18 @@ type Server struct {
 	typ            string
 	arg            server.Argument
 	lastAlive      time.Time
-	// mutex protects keys
+	// mutex protects passages
 	mutex           sync.Mutex
-	keys            []Key
+	passages        []Passage
 	userContextPool *UserContextPool
 	listener        net.Listener
 	udpConn         *net.UDPConn
 	nm              *UDPConnMapping
 }
 
-type Key struct {
-	password  string
-	method    string
-	masterKey []byte
-	manager   bool
-	forwardTo string
+type Passage struct {
+	server.Passage
+	inMasterKey []byte
 }
 
 func New(sweetLisaHost, chatIdentifier string, arg server.Argument) (server.Server, error) {
@@ -57,7 +54,7 @@ func New(sweetLisaHost, chatIdentifier string, arg server.Argument) (server.Serv
 		closed:          make(chan struct{}),
 		arg:             arg,
 	}
-	if err := s.AddUsers([]server.User{{Manager: true}}); err != nil {
+	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
 		return nil, err
 	}
 
@@ -92,8 +89,8 @@ func (s *Server) registerBackground() {
 }
 
 func (s *Server) register() error {
-	var manager server.User
-	users := s.Users()
+	var manager server.Passage
+	users := s.Passages()
 	for _, u := range users {
 		if u.Manager {
 			manager = u
@@ -107,9 +104,8 @@ func (s *Server) register() error {
 		Port:   s.arg.Port,
 		Argument: model.Argument{
 			Protocol: "shadowsocks",
-			Username: manager.Username,
-			Password: manager.Password,
-			Method:   manager.Method,
+			Password: manager.In.Password,
+			Method:   manager.In.Method,
 		},
 	})
 	if err != nil {
@@ -118,21 +114,21 @@ func (s *Server) register() error {
 	log.Alert("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisaHost))
 	s.lastAlive = time.Now()
 	// sweetLisa can replace the manager key here
-	if err := s.SyncUsers(users); err != nil {
+	if err := s.SyncPassages(users); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Server) SyncUsers(users []server.User) (err error) {
-	log.Trace("SyncUsers: %v", users)
-	toRemove, toAdd := common.Change(s.Users(), users, func(x interface{}) string {
-		return x.(server.User).Method + "|" + x.(server.User).Password
+func (s *Server) SyncPassages(passages []server.Passage) (err error) {
+	log.Trace("SyncPassages: %v", passages)
+	toRemove, toAdd := common.Change(s.Passages(), passages, func(x interface{}) string {
+		return x.(server.Passage).In.Method + "|" + x.(server.Passage).In.Password
 	})
-	if err := s.RemoveUsers(toRemove.([]server.User), false); err != nil {
+	if err := s.RemovePassages(toRemove.([]server.Passage), false); err != nil {
 		return err
 	}
-	if err := s.AddUsers(toAdd.([]server.User)); err != nil {
+	if err := s.AddPassages(toAdd.([]server.Passage)); err != nil {
 		return err
 	}
 	return nil
@@ -218,82 +214,78 @@ func (s *Server) Close() error {
 	return err
 }
 
-func Users2Keys(users []server.User) (keys []Key, managerKey *Key) {
-	keys = make([]Key, len(users))
-	for i, u := range users {
-		if u.Manager {
-			u.Password, _ = gonanoid.Generate(common.Alphabet, 21)
-			u.Method = "aes-256-gcm"
+func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passage) {
+	psgs = make([]Passage, len(passages))
+	for i, psg := range passages {
+		if psg.Manager {
+			psg.In.Password, _ = gonanoid.Generate(common.Alphabet, 21)
+			psg.In.Method = "aes-256-gcm"
 			// allow only one manager
-			if managerKey == nil {
-				keys[i].manager = true
-				managerKey = &keys[i]
+			if manager == nil {
+				manager = &psgs[i]
+			} else {
+				psg.Manager = false
+				log.Warn("found more than one manager")
 			}
 		}
-		keys[i].forwardTo = u.ForwardTo
-		keys[i].password = u.Password
-		keys[i].method = u.Method
-		if keys[i].method == "" {
-			keys[i].method = "chacha20-ietf-poly1305"
+		psgs[i].Passage = psg
+		if psgs[i].In.Method == "" {
+			psgs[i].In.Method = "chacha20-ietf-poly1305"
 		}
-		conf := CiphersConf[u.Method]
-		keys[i].masterKey = EVPBytesToKey(u.Password, conf.KeyLen)
+		conf := CiphersConf[psg.In.Method]
+		psgs[i].inMasterKey = EVPBytesToKey(psg.In.Password, conf.KeyLen)
 	}
-	return keys, managerKey
+	return psgs, manager
 }
 
-func (s *Server) AddUsers(users []server.User) (err error) {
-	log.Trace("AddUsers: %v", users)
-	keys, managerKey := Users2Keys(users)
+func (s *Server) AddPassages(passages []server.Passage) (err error) {
+	log.Trace("AddPassages: %v", passages)
+	us, managerKey := LocalizePassages(passages)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	// update manager key
 	if managerKey != nil {
 		// remove manager key in UserContext
-		s.removeKeysFunc(func(key Key) (remove bool) {
-			return key.manager == true
+		s.removePassagesFunc(func(passage Passage) (remove bool) {
+			return passage.Manager == true
 		})
 	}
-	s.addKeys(keys)
+	s.addPassages(us)
 	return nil
 }
 
-func (s *Server) RemoveUsers(users []server.User, alsoManager bool) (err error) {
-	log.Trace("RemoveUsers: %v, alsoManager: %v", users, alsoManager)
-	keys, _ := Users2Keys(users)
+func (s *Server) RemovePassages(passages []server.Passage, alsoManager bool) (err error) {
+	log.Trace("RemovePassages: %v, alsoManager: %v", passages, alsoManager)
+	psgs, _ := LocalizePassages(passages)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	var keySet = make(map[string]struct{})
-	for _, key := range keys {
-		if key.manager && !alsoManager {
+	for _, passage := range psgs {
+		if passage.Manager && !alsoManager {
 			continue
 		}
-		k := key.method + "|" + key.password
+		k := passage.In.Method + "|" + passage.In.Password
 		keySet[k] = struct{}{}
 	}
-	s.removeKeysFunc(func(key Key) (remove bool) {
-		k := key.method + "|" + key.password
+	s.removePassagesFunc(func(passage Passage) (remove bool) {
+		k := passage.In.Method + "|" + passage.In.Password
 		_, ok := keySet[k]
 		return ok
 	})
 	return nil
 }
 
-func (s *Server) Users() (users []server.User) {
+func (s *Server) Passages() (passages []server.Passage) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	for _, k := range s.keys {
-		users = append(users, server.User{
-			Password: k.password,
-			Method:   k.method,
-			Manager:  k.manager,
-		})
+	for _, passage := range s.passages {
+		passages = append(passages, passage.Passage)
 	}
-	return users
+	return passages
 }
 
-func (s *Server) addKeys(keys []Key) {
-	s.keys = append(s.keys, keys...)
+func (s *Server) addPassages(passages []Passage) {
+	s.passages = append(s.passages, passages...)
 
 	var vals []interface{}
 	for _, k := range vals {
@@ -306,10 +298,10 @@ func (s *Server) addKeys(keys []Key) {
 	}
 }
 
-func (s *Server) removeKeysFunc(f func(key Key) (remove bool)) {
-	for i := len(s.keys) - 1; i >= 0; i-- {
-		if f(s.keys[i]) {
-			s.keys = append(s.keys[:i], s.keys[i+1:]...)
+func (s *Server) removePassagesFunc(f func(passage Passage) (remove bool)) {
+	for i := len(s.passages) - 1; i >= 0; i-- {
+		if f(s.passages[i]) {
+			s.passages = append(s.passages[:i], s.passages[i+1:]...)
 		}
 	}
 	socketIdents := s.userContextPool.Infra().GetKeys()
@@ -317,7 +309,7 @@ func (s *Server) removeKeysFunc(f func(key Key) (remove bool)) {
 		userContext := s.userContextPool.Infra().Get(ident).(*UserContext).Infra()
 		listCopy := userContext.GetListCopy()
 		for _, node := range listCopy {
-			if f(node.Val.(Key)) {
+			if f(node.Val.(Passage)) {
 				userContext.Remove(node)
 			}
 		}

@@ -1,14 +1,8 @@
 package server
 
-type User struct {
-	// Optional
-	Username string
-	// Required
-	Password string
-	// Optional
-	Method string
-	// SweetLisa
+import "github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+
+type Passage struct {
 	Manager bool
-	// Required for relay
-	ForwardTo string
+	model.Passage
 }

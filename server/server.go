@@ -19,10 +19,10 @@ type Argument struct {
 
 type Server interface {
 	Listen(addr string) (err error)
-	AddUsers(users []User) (err error)
-	RemoveUsers(users []User, alsoManager bool) (err error)
-	SyncUsers(users []User) (err error)
-	Users() (users []User)
+	AddPassages(passages []Passage) (err error)
+	RemovePassages(passages []Passage, alsoManager bool) (err error)
+	SyncPassages(passages []Passage) (err error)
+	Passages() (passages []Passage)
 	io.Closer
 }
 

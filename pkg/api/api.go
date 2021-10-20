@@ -7,15 +7,13 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
-	"net"
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
 	"time"
 )
 
-func Register(endpointHost, chatIdentifier string, info model.Server) (users []server.User, err error) {
+func Register(endpointHost, chatIdentifier string, info model.Server) (users []server.Passage, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	b, err := jsoniter.Marshal(info)
@@ -40,7 +38,7 @@ func Register(endpointHost, chatIdentifier string, info model.Server) (users []s
 	defer resp.Body.Close()
 	var respBody struct {
 		Code    string
-		Data    []model.Server
+		Data    []model.Passage
 		Message string
 	}
 	if err := jsoniter.NewDecoder(resp.Body).Decode(&respBody); err != nil {
@@ -49,17 +47,11 @@ func Register(endpointHost, chatIdentifier string, info model.Server) (users []s
 	if respBody.Code != "SUCCESS" {
 		return nil, fmt.Errorf(respBody.Message)
 	}
-	for _, u := range respBody.Data {
-		var user = server.User{
-			Username: u.Argument.Username,
-			Password: u.Argument.Password,
-			Method:   u.Argument.Method,
-			Manager:  false,
-		}
-		if u.Host != "" {
-			user.ForwardTo = net.JoinHostPort(u.Host, strconv.Itoa(u.Port))
-		}
-		users = append(users, user)
+	for _, passage := range respBody.Data {
+		users = append(users, server.Passage{
+			Passage: passage,
+			Manager: false,
+		})
 	}
 	return users, nil
 }

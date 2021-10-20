@@ -40,4 +40,4 @@ require (
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
 
-//replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c => ../SweetLisa
+replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa

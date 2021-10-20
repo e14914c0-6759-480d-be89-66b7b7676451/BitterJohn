@@ -10,13 +10,13 @@ import (
 // UserContext is the context of a user which indicates the preferred servers
 type UserContext lrulist.LruList
 
-func (ctx *UserContext) Auth(probe func(Key) ([]byte, bool)) (hit *Key, content []byte) {
+func (ctx *UserContext) Auth(probe func(Passage) ([]byte, bool)) (hit *Passage, content []byte) {
 	lruList := ctx.Infra()
 	listCopy := lruList.GetListCopy()
 	defer lruList.DestroyListCopy(listCopy)
 	// probe every server
 	for i := range listCopy {
-		server := listCopy[i].Val.(Key)
+		server := listCopy[i].Val.(Passage)
 		if content, ok := probe(server); ok {
 			lruList.Promote(listCopy[i])
 			return &server, content
@@ -40,12 +40,12 @@ func (pool *UserContextPool) Infra() *lru.LRU {
 	return (*lru.LRU)(pool)
 }
 
-func NewUserContext(keys []Key) *UserContext {
+func NewUserContext(passages []Passage) *UserContext {
 	basicInterval := 10 * time.Second
 	offsetRange := 6.0
 	offset := time.Duration((rand.Float64()-0.5)*offsetRange*1000) * time.Millisecond
-	var list = make([]interface{}, len(keys))
-	for i, k := range keys {
+	var list = make([]interface{}, len(passages))
+	for i, k := range passages {
 		list[i] = k
 	}
 	ctx := lrulist.NewWithList(basicInterval+offset, lrulist.InsertFront, list)
@@ -54,7 +54,7 @@ func NewUserContext(keys []Key) *UserContext {
 
 func (s *Server) GetUserContextOrInsert(userIP string) *UserContext {
 	userCtx, removed := s.userContextPool.Infra().GetOrInsert(userIP, func() (val interface{}) {
-		return NewUserContext(s.keys)
+		return NewUserContext(s.passages)
 	})
 	for _, ev := range removed {
 		ev.Value.(*lrulist.LruList).Close()

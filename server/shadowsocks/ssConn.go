@@ -41,6 +41,11 @@ type SSConn struct {
 	indexToRead int
 }
 
+type Key struct {
+	CipherConf CipherConf
+	MasterKey  []byte
+}
+
 func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, err error) {
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
@@ -190,29 +195,28 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 }
 
 func ShadowUDP(key Key, b []byte) (shadowBytes []byte, err error) {
-	cipherConf := CiphersConf[key.method]
-	var buf = pool.Get(cipherConf.SaltLen + len(b) + cipherConf.TagLen) // delay putting back
-	_, err = rand.Read(buf[:cipherConf.SaltLen])
+	var buf = pool.Get(key.CipherConf.SaltLen + len(b) + key.CipherConf.TagLen) // delay putting back
+	_, err = rand.Read(buf[:key.CipherConf.SaltLen])
 	if err != nil {
 		return
 	}
-	subKey := pool.Get(cipherConf.KeyLen)
+	subKey := pool.Get(key.CipherConf.KeyLen)
 	defer pool.Put(subKey)
 	kdf := hkdf.New(
 		sha1.New,
-		key.masterKey,
-		buf[:cipherConf.SaltLen],
+		key.MasterKey,
+		buf[:key.CipherConf.SaltLen],
 		ReusedInfo,
 	)
 	_, err = io.ReadFull(kdf, subKey)
 	if err != nil {
 		return
 	}
-	ciph, err := cipherConf.NewCipher(subKey)
+	ciph, err := key.CipherConf.NewCipher(subKey)
 	if err != nil {
 		return
 	}
-	_ = ciph.Seal(buf[cipherConf.SaltLen:cipherConf.SaltLen], ZeroNonce[:cipherConf.NonceLen], b, nil)
+	_ = ciph.Seal(buf[key.CipherConf.SaltLen:key.CipherConf.SaltLen], ZeroNonce[:key.CipherConf.NonceLen], b, nil)
 	return buf, nil
 }
 

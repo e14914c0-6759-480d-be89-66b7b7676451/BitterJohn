@@ -20,9 +20,9 @@ const (
 	BasicLen = 32 + 2 + 16
 )
 
-func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
-	if !key.manager {
-		return fmt.Errorf("handleMsg: illegal message received from a non-manager user")
+func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage) error {
+	if !passage.Manager {
+		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
 	}
 	if reqMetadata.Type != MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
@@ -35,7 +35,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 	if _, err := io.ReadFull(crw, req); err != nil {
 		return err
 	}
-	lenPadding := CalcPaddingLen(key.masterKey, req, true)
+	lenPadding := CalcPaddingLen(passage.inMasterKey, req, true)
 	var padding = pool.Get(lenPadding)
 	defer pool.Put(padding)
 	if _, err := io.ReadFull(crw, padding); err != nil {
@@ -63,25 +63,20 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 		defer pool.Put(resp)
 		copy(resp, "pong")
 	case MetadataCmdSyncKeys:
-		var keys []model.Server
-		if err := jsoniter.Unmarshal(req, &keys); err != nil {
+		var passages []model.Passage
+		if err := jsoniter.Unmarshal(req, &passages); err != nil {
 			return err
 		}
-		var serverUsers []server.User
-		for _, u := range keys {
-			var user = server.User{
-				Username: u.Argument.Username,
-				Password: u.Argument.Password,
-				Method:   u.Argument.Method,
-				Manager:  false,
+		var serverPassages []server.Passage
+		for _, passage := range passages {
+			var user = server.Passage{
+				Passage: passage,
+				Manager: false,
 			}
-			if u.Host != "" {
-				user.ForwardTo = net.JoinHostPort(u.Host, strconv.Itoa(u.Port))
-			}
-			serverUsers = append(serverUsers, user)
+			serverPassages = append(serverPassages, user)
 		}
-		// sweetLisa can replace the manager key here
-		if err := s.SyncUsers(serverUsers); err != nil {
+		// sweetLisa can replace the manager passage here
+		if err := s.SyncPassages(serverPassages); err != nil {
 			return err
 		}
 
@@ -98,7 +93,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 	}
 
 	crw.Write(resp)
-	padding = pool.Get(CalcPaddingLen(key.masterKey, resp, false))
+	padding = pool.Get(CalcPaddingLen(passage.inMasterKey, resp, false))
 	defer pool.Put(padding)
 	crw.Write(padding)
 	return nil
@@ -107,8 +102,8 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, key *Key) error {
 func (s *Server) handleTCP(conn net.Conn) error {
 	bConn := bufferredConn.NewBufferedConnSize(conn, MTUTrie.GetMTU(conn.LocalAddr().(*net.TCPAddr).IP))
 	defer bConn.Close()
-	key, _ := s.authTCP(bConn)
-	if key == nil {
+	passage, _ := s.authTCP(bConn)
+	if passage == nil {
 		// Auth fail. Drain the conn
 		log.Info("Auth fail. Drain the conn from: %v", conn.RemoteAddr().String())
 		_, err := io.Copy(io.Discard, conn)
@@ -116,8 +111,8 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	}
 	var target string
 	var lConn net.Conn
-	if key.forwardTo == "" {
-		crw, err := NewSSConn(bConn, CiphersConf[key.method], key.masterKey)
+	if passage.Out == nil {
+		crw, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey)
 		if err != nil {
 			return err
 		}
@@ -127,13 +122,13 @@ func (s *Server) handleTCP(conn net.Conn) error {
 			return err
 		}
 		if targetMetadata.Type == MetadataTypeMsg {
-			return s.handleMsg(crw, targetMetadata, key)
+			return s.handleMsg(crw, targetMetadata, passage)
 		}
 		lConn = crw
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 	} else {
 		lConn = bConn
-		target = key.forwardTo
+		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
 	}
 
 	// Dial and relay
@@ -172,7 +167,7 @@ func relayTCP(lConn, rConn net.Conn) (err error) {
 	return <-eCh
 }
 
-func (s *Server) authTCP(conn bufferredConn.BufferedConn) (key *Key, err error) {
+func (s *Server) authTCP(conn bufferredConn.BufferedConn) (passage *Passage, err error) {
 	var buf = pool.Get(BasicLen)
 	defer pool.Put(buf)
 	data, err := conn.Peek(BasicLen)
@@ -180,18 +175,18 @@ func (s *Server) authTCP(conn bufferredConn.BufferedConn) (key *Key, err error) 
 		return nil, io.ErrUnexpectedEOF
 	}
 	ctx := s.GetUserContextOrInsert(conn.RemoteAddr().(*net.TCPAddr).IP.String())
-	key, _ = ctx.Auth(func(key Key) ([]byte, bool) {
-		return s.probeTCP(buf, data, key)
+	passage, _ = ctx.Auth(func(passage Passage) ([]byte, bool) {
+		return s.probeTCP(buf, data, passage)
 	})
-	return key, nil
+	return passage, nil
 }
 
-func (s *Server) probeTCP(buf []byte, data []byte, key Key) ([]byte, bool) {
+func (s *Server) probeTCP(buf []byte, data []byte, passage Passage) ([]byte, bool) {
 	//[salt][encrypted payload length][length tag][encrypted payload][payload tag]
-	conf := CiphersConf[key.method]
+	conf := CiphersConf[passage.In.Method]
 
 	salt := data[:conf.SaltLen]
 	cipherText := data[conf.SaltLen : conf.SaltLen+2+conf.TagLen]
 
-	return conf.Verify(buf, key.masterKey, salt, cipherText, nil)
+	return conf.Verify(buf, passage.inMasterKey, salt, cipherText, nil)
 }
