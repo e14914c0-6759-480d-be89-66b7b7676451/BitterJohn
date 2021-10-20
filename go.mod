@@ -3,7 +3,7 @@ module github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
 go 1.17
 
 require (
-	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020052658-8ac8f1e120ef
+	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020113212-bd997be902ca
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.8.0
@@ -40,4 +40,4 @@ require (
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
 
-replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa
+//replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa
