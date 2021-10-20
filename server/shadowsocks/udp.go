@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"golang.org/x/net/dns/dnsmessage"
 	"net"
 	"strconv"
@@ -17,23 +18,35 @@ const (
 
 func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 	// get conn or dial and relay
-	rc, key, plainText, err := s.GetOrBuildUCPConn(lAddr, data[:n])
+	rc, passage, plainText, err := s.GetOrBuildUCPConn(lAddr, data[:n])
 	if err != nil {
 		if err == ErrFailAuth {
 			return nil
 		}
 		return fmt.Errorf("dial target error: %w", err)
 	}
+	defer pool.Put(plainText)
 
 	size, _ := BytesSizeForMetadata(plainText)
-	if key.Out == nil {
+	if passage.Out == nil {
 		// send packet to target
 		if _, err = rc.Write(plainText[size:]); err != nil {
 			return fmt.Errorf("write error: %w", err)
 		}
 	} else {
-		// send raw packet to the next ss server
-		if _, err = rc.Write(data[:n]); err != nil {
+		// send encrypted packet to the next server
+		var toWrite []byte
+		switch passage.Out.Protocol {
+		case model.ProtocolShadowsocks:
+			if toWrite, err = EncryptUDPFromPool(Key{
+				CipherConf: CiphersConf[passage.Out.Method],
+				MasterKey:  passage.outMasterKey,
+			}, plainText); err != nil {
+				return err
+			}
+			defer pool.Put(toWrite)
+		}
+		if _, err = rc.Write(toWrite); err != nil {
 			return fmt.Errorf("write error: %w", err)
 		}
 	}
@@ -55,6 +68,8 @@ func selectTimeout(packet []byte) time.Duration {
 	return DnsQueryTimeout
 }
 
+// GetOrBuildUCPConn get a UDP conn from the mapping.
+// plainText is from pool. Please MUST put it back.
 func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, passage *Passage, plainText []byte, err error) {
 	var conn *UDPConn
 	var ok bool
@@ -63,22 +78,24 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	userContext := s.GetUserContextOrInsert(lAddr.(*net.UDPAddr).IP.String())
 
 	buf := pool.Get(len(data))
-	defer pool.Put(buf)
+	defer func() {
+		if err != nil {
+			pool.Put(buf)
+		}
+	}()
 	// auth every key
 	passage, plainText = s.authUDP(buf, data, userContext)
 	if passage == nil {
 		return nil, nil, nil, ErrFailAuth
 	}
 	var target string
-	var targetMetadata *Metadata
+	targetMetadata, err := NewMetadata(plainText)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	if passage.Out == nil {
-		targetMetadata, err = NewMetadata(plainText)
-		if err != nil {
-			return nil, nil, nil, err
-		}
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 	} else {
-		targetMetadata = nil
 		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
 	}
 
@@ -105,7 +122,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 		// relay
 		go func() {
-			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *passage, targetMetadata)
+			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *passage, *targetMetadata)
 			s.nm.Lock()
 			s.nm.Remove(connIdent)
 			s.nm.Unlock()
@@ -127,23 +144,32 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	return rc, passage, plainText, nil
 }
 
-func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, k Passage, target *Metadata) (err error) {
+func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, passage Passage, target Metadata) (err error) {
 	var (
 		n           int
 		shadowBytes []byte
 	)
-	var bytesTarget []byte
-	if target == nil {
-		// forward to another ss server
-		bytesTarget = nil
-	} else {
-		bytesTarget = target.BytesFromPool()
-	}
+	bytesTarget := target.BytesFromPool()
 	targetLen := len(bytesTarget)
 	buf := pool.Get(targetLen + MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)
 	copy(buf, bytesTarget)
 	pool.Put(bytesTarget)
+	var inKey, outKey Key
+	inKey = Key{
+		CipherConf: CiphersConf[passage.In.Method],
+		MasterKey:  passage.inMasterKey,
+	}
+	if passage.Out != nil {
+		switch passage.Out.Protocol {
+		case model.ProtocolShadowsocks:
+			outKey = Key{
+				CipherConf: CiphersConf[passage.Out.Method],
+				MasterKey:  passage.outMasterKey,
+			}
+		}
+	}
+
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
 		n, _, err = src.ReadFrom(buf[targetLen:])
@@ -151,17 +177,21 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(DefaultNatTimeout)) // should keep consistent
-
-		if target == nil {
-			shadowBytes = buf[:targetLen+n]
-		} else {
-			shadowBytes, err = ShadowUDP(Key{
-				CipherConf: CiphersConf[k.In.Method],
-				MasterKey:  k.inMasterKey,
-			}, buf[:targetLen+n])
+		if passage.Out != nil {
+			switch passage.Out.Protocol {
+			case model.ProtocolShadowsocks:
+				plainText, err := DecryptUDP(outKey, buf[targetLen:targetLen+n])
+				if err != nil {
+					log.Warn("relay: DecryptUDP: %v", err)
+					continue
+				}
+				copy(buf[targetLen:], buf[targetLen+targetLen:])
+				n = len(plainText) - targetLen
+			}
 		}
+		shadowBytes, err = EncryptUDPFromPool(inKey, buf[:targetLen+n])
 		if err != nil {
-			log.Warn("relay: ShadowUDP: %v", err)
+			log.Warn("relay: EncryptUDPFromPool: %v", err)
 			continue
 		}
 		_, err = dst.WriteTo(shadowBytes, laddr)

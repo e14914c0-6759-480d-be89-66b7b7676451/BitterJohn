@@ -3,7 +3,7 @@ module github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
 go 1.17
 
 require (
-	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020023854-3afe293c54f8
+	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020052658-8ac8f1e120ef
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.8.0

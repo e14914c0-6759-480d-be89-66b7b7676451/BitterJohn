@@ -194,11 +194,18 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 	return len(b), err
 }
 
-func ShadowUDP(key Key, b []byte) (shadowBytes []byte, err error) {
-	var buf = pool.Get(key.CipherConf.SaltLen + len(b) + key.CipherConf.TagLen) // delay putting back
+// EncryptUDPFromPool returns shadowBytes from pool.
+// the shadowBytes MUST be put back.
+func EncryptUDPFromPool(key Key, b []byte) (shadowBytes []byte, err error) {
+	var buf = pool.Get(key.CipherConf.SaltLen + len(b) + key.CipherConf.TagLen)
+	defer func() {
+		if err != nil {
+			pool.Put(buf)
+		}
+	}()
 	_, err = rand.Read(buf[:key.CipherConf.SaltLen])
 	if err != nil {
-		return
+		return nil, err
 	}
 	subKey := pool.Get(key.CipherConf.KeyLen)
 	defer pool.Put(subKey)
@@ -210,14 +217,40 @@ func ShadowUDP(key Key, b []byte) (shadowBytes []byte, err error) {
 	)
 	_, err = io.ReadFull(kdf, subKey)
 	if err != nil {
+		return nil, err
+	}
+	ciph, err := key.CipherConf.NewCipher(subKey)
+	if err != nil {
+		return nil, err
+	}
+	_ = ciph.Seal(buf[key.CipherConf.SaltLen:key.CipherConf.SaltLen], ZeroNonce[:key.CipherConf.NonceLen], b, nil)
+	return buf, nil
+}
+
+// DecryptUDP will decrypt the data in place
+func DecryptUDP(key Key, shadowBytes []byte) (plainText []byte, err error) {
+	subKey := pool.Get(key.CipherConf.KeyLen)
+	defer pool.Put(subKey)
+	kdf := hkdf.New(
+		sha1.New,
+		key.MasterKey,
+		shadowBytes[:key.CipherConf.SaltLen],
+		ReusedInfo,
+	)
+	_, err = io.ReadFull(kdf, subKey)
+	if err != nil {
 		return
 	}
 	ciph, err := key.CipherConf.NewCipher(subKey)
 	if err != nil {
 		return
 	}
-	_ = ciph.Seal(buf[key.CipherConf.SaltLen:key.CipherConf.SaltLen], ZeroNonce[:key.CipherConf.NonceLen], b, nil)
-	return buf, nil
+	plainText, err = ciph.Open(shadowBytes[key.CipherConf.SaltLen:key.CipherConf.SaltLen], ZeroNonce[:key.CipherConf.NonceLen], shadowBytes[key.CipherConf.SaltLen:], nil)
+	if err != nil {
+		return nil, err
+	}
+	copy(shadowBytes, plainText)
+	return shadowBytes[:len(plainText)], nil
 }
 
 func (c *SSConn) ReadMetadata() (metadata *Metadata, err error) {

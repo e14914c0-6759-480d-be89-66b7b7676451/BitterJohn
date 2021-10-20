@@ -126,23 +126,22 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	// handle connection
 	var target string
 	var lConn net.Conn
+	crw, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey)
+	if err != nil {
+		return err
+	}
+	// Read target
+	targetMetadata, err := crw.ReadMetadata()
+	if err != nil {
+		return err
+	}
+	if targetMetadata.Type == MetadataTypeMsg {
+		return s.handleMsg(crw, targetMetadata, passage)
+	}
+	lConn = crw
 	if passage.Out == nil {
-		crw, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey)
-		if err != nil {
-			return err
-		}
-		// Read target
-		targetMetadata, err := crw.ReadMetadata()
-		if err != nil {
-			return err
-		}
-		if targetMetadata.Type == MetadataTypeMsg {
-			return s.handleMsg(crw, targetMetadata, passage)
-		}
-		lConn = crw
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 	} else {
-		lConn = bConn
 		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
 	}
 
@@ -159,6 +158,20 @@ func (s *Server) handleTCP(conn net.Conn) error {
 			return nil // ignore i/o timeout
 		}
 		return err
+	}
+	if passage.Out != nil {
+		switch passage.Out.Protocol {
+		case model.ProtocolShadowsocks:
+			rConn, err = NewSSConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey)
+			if err != nil {
+				return err
+			}
+			addr := targetMetadata.BytesFromPool()
+			defer pool.Put(addr)
+			if _, err = rConn.Write(addr); err != nil {
+				return err
+			}
+		}
 	}
 	if err = relayTCP(lConn, rConn); err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {

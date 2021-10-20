@@ -11,13 +11,7 @@ github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMn
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211016031441-3a50d1bea71d/go.mod h1:+6xonfiLNhZTz4GL2a9UGeSToJrlQ4hMA8CndJDiHzo=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211019113435-2b02ec955a73/go.mod h1:XccRir4Q7tXA8YgjytwpZo+oS6M9kJsl2/hhHC/Qzr0=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211019113859-3595f87fd1c7/go.mod h1:A5Hku0sXle6l1FJesa5mEwvV3PW+/hhixEX5RXTdLgc=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c/go.mod h1:ZkjgqJg7FRdqsW+4TY23oSxgQtYgKPToUodILj/4wCQ=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211019113726-5f4cc4dfa31e/go.mod h1:8O6T24gnJ05eaz9nZH07AMpW7CaJTOWNu6AhCYaGMLM=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020023854-3afe293c54f8 h1:GuoyU5PiWqeAl/aYJpIr6cfN5thpGVq7+HF6IMUVu4Q=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020023854-3afe293c54f8/go.mod h1:mfceIZ5Jic8pFdkF0G7RE/852AhjycmKVR/P7iwa4fM=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211020052956-c845ae4b5d3c/go.mod h1:/vH2ut9Xr9cbkj6Y/H3jhLi+nGm/3GiEiBDSQnTIXps=
 github.com/eknkc/basex v1.0.1 h1:TcyAkqh4oJXgV3WYyL4KEfCMk9W8oJCpmx1bo+jVgKY=
 github.com/eknkc/basex v1.0.1/go.mod h1:k/F/exNEHFdbs3ZHuasoP2E7zeWwZblG84Y7Z59vQRo=
 github.com/gin-contrib/sse v0.1.0 h1:Y/yl/+YNO8GZSjAhjMsSuLt29uWRFHdHYUb5lYOV9qE=

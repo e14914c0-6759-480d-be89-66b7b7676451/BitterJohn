@@ -44,7 +44,8 @@ type Server struct {
 
 type Passage struct {
 	server.Passage
-	inMasterKey []byte
+	inMasterKey  []byte
+	outMasterKey []byte
 }
 
 func (p *Passage) Use() (use server.PassageUse) {
@@ -240,8 +241,11 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 		if psgs[i].In.Method == "" {
 			psgs[i].In.Method = "chacha20-ietf-poly1305"
 		}
-		conf := CiphersConf[psg.In.Method]
-		psgs[i].inMasterKey = EVPBytesToKey(psg.In.Password, conf.KeyLen)
+		psgs[i].inMasterKey = EVPBytesToKey(psg.In.Password, CiphersConf[psg.In.Method].KeyLen)
+		// TODO: other protocols
+		if psg.Out != nil && psg.Out.Protocol == model.ProtocolShadowsocks {
+			psgs[i].outMasterKey = EVPBytesToKey(psg.Out.Password, CiphersConf[psg.Out.Method].KeyLen)
+		}
 	}
 	return psgs, manager
 }
