@@ -38,6 +38,8 @@ type Server struct {
 	listener        net.Listener
 	udpConn         *net.UDPConn
 	nm              *UDPConnMapping
+	// passageContentionCache log the last client IP of passages
+	passageContentionCache *server.ContentionCache
 }
 
 type Passage struct {
@@ -45,14 +47,25 @@ type Passage struct {
 	inMasterKey []byte
 }
 
+func (p *Passage) Use() (use server.PassageUse) {
+	if p.Manager {
+		return server.PassageUseManager
+	} else if p.In.From == "" {
+		return server.PassageUseUser
+	} else {
+		return server.PassageUseRelay
+	}
+}
+
 func New(sweetLisaHost, chatIdentifier string, arg server.Argument) (server.Server, error) {
 	s := Server{
-		userContextPool: (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
-		nm:              NewUDPConnMapping(),
-		sweetLisaHost:   sweetLisaHost,
-		chatIdentifier:  chatIdentifier,
-		closed:          make(chan struct{}),
-		arg:             arg,
+		userContextPool:        (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
+		nm:                     NewUDPConnMapping(),
+		sweetLisaHost:          sweetLisaHost,
+		chatIdentifier:         chatIdentifier,
+		closed:                 make(chan struct{}),
+		arg:                    arg,
+		passageContentionCache: server.NewContentionCache(),
 	}
 	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
 		return nil, err
@@ -138,7 +151,11 @@ func (s *Server) ListenTCP(addr string) (err error) {
 		go func() {
 			err := s.handleTCP(conn)
 			if err != nil {
-				log.Info("handleTCP: %v", err)
+				if errors.Is(err, ErrPassageAbuse) {
+					log.Warn("handleTCP: %v", err)
+				} else {
+					log.Info("handleTCP: %v", err)
+				}
 			}
 		}()
 	}
@@ -180,6 +197,7 @@ func (s *Server) ListenUDP(addr string) (err error) {
 		}()
 	}
 }
+
 func (s *Server) Listen(addr string) (err error) {
 	eCh := make(chan error, 2)
 	go func() {

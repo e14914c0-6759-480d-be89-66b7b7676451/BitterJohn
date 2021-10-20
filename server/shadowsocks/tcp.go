@@ -20,6 +20,8 @@ const (
 	BasicLen = 32 + 2 + 16
 )
 
+var ErrPassageAbuse = fmt.Errorf("passage abuse")
+
 func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage) error {
 	if !passage.Manager {
 		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
@@ -109,6 +111,19 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		_, err := io.Copy(io.Discard, conn)
 		return err
 	}
+
+	// detect passage contention
+	contentionDuration := server.ProtectTime[passage.Use()]
+	if contentionDuration > 0 {
+		thisIP := conn.RemoteAddr().(*net.TCPAddr).IP
+		passageKey := passage.In.Argument.Hash()
+		accept, conflictIP := s.passageContentionCache.Check(passageKey, contentionDuration, thisIP)
+		if !accept {
+			return fmt.Errorf("%w: from %v and %v: contention detected", ErrPassageAbuse, thisIP.String(), conflictIP.String())
+		}
+	}
+
+	// handle connection
 	var target string
 	var lConn net.Conn
 	if passage.Out == nil {
@@ -129,6 +144,11 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	} else {
 		lConn = bConn
 		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
+	}
+
+	// manager should not come to this line
+	if passage.Manager {
+		return fmt.Errorf("%w: manager key is ubused for a non-cmd connection", ErrPassageAbuse)
 	}
 
 	// Dial and relay
