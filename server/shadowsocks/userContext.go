@@ -57,7 +57,7 @@ func (s *Server) GetUserContextOrInsert(userIP string) *UserContext {
 		return NewUserContext(s.passages)
 	})
 	for _, ev := range removed {
-		ev.Value.(*lrulist.LruList).Close()
+		ev.Value.(*UserContext).Close()
 	}
 	return userCtx.(*UserContext)
 }

@@ -62,7 +62,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 		resp = pool.Get(int(respMeta.LenMsgBody))
 		defer pool.Put(resp)
 		copy(resp, "pong")
-	case MetadataCmdSyncKeys:
+	case MetadataCmdSyncPassages:
 		var passages []model.Passage
 		if err := jsoniter.Unmarshal(req, &passages); err != nil {
 			return err

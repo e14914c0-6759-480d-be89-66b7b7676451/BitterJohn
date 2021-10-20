@@ -2,9 +2,9 @@ package shadowsocks
 
 import (
 	"errors"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
@@ -121,17 +121,7 @@ func (s *Server) register() error {
 }
 
 func (s *Server) SyncPassages(passages []server.Passage) (err error) {
-	log.Trace("SyncPassages: %v", passages)
-	toRemove, toAdd := common.Change(s.Passages(), passages, func(x interface{}) string {
-		return x.(server.Passage).In.Method + "|" + x.(server.Passage).In.Password
-	})
-	if err := s.RemovePassages(toRemove.([]server.Passage), false); err != nil {
-		return err
-	}
-	if err := s.AddPassages(toAdd.([]server.Passage)); err != nil {
-		return err
-	}
-	return nil
+	return server.SyncPassages(s, passages)
 }
 
 func (s *Server) ListenTCP(addr string) (err error) {
@@ -264,12 +254,10 @@ func (s *Server) RemovePassages(passages []server.Passage, alsoManager bool) (er
 		if passage.Manager && !alsoManager {
 			continue
 		}
-		k := passage.In.Method + "|" + passage.In.Password
-		keySet[k] = struct{}{}
+		keySet[passage.In.Argument.Hash()] = struct{}{}
 	}
 	s.removePassagesFunc(func(passage Passage) (remove bool) {
-		k := passage.In.Method + "|" + passage.In.Password
-		_, ok := keySet[k]
+		_, ok := keySet[passage.In.Argument.Hash()]
 		return ok
 	})
 	return nil

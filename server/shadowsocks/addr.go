@@ -26,7 +26,7 @@ type MetadataCmd uint8
 
 const (
 	MetadataCmdPing MetadataCmd = iota
-	MetadataCmdSyncKeys
+	MetadataCmdSyncPassages
 	MetadataCmdResponse
 )
 

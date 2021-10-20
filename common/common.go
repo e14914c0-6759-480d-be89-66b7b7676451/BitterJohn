@@ -7,7 +7,7 @@ import (
 const Alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
 
 func BytesIncBigEndian(b []byte) {
-	for i := len(b) - 1;i >= 0; i-- {
+	for i := len(b) - 1; i >= 0; i-- {
 		b[i]++
 		if b[i] != 0 {
 			break

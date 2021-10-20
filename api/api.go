@@ -10,12 +10,11 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"time"
 )
 
 func Register(endpointHost, chatIdentifier string, info model.Server) (users []server.Passage, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	//defer cancel()
 	b, err := jsoniter.Marshal(info)
 	if err != nil {
 		return nil, err
@@ -25,7 +24,7 @@ func Register(endpointHost, chatIdentifier string, info model.Server) (users []s
 		Host:   endpointHost,
 		Path:   path.Join("api", chatIdentifier, info.Ticket, "register"),
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint.String(), bytes.NewReader(b))
+	req, err := http.NewRequestWithContext(context.TODO(), "POST", endpoint.String(), bytes.NewReader(b))
 	if err != nil {
 		return nil, err
 	}
