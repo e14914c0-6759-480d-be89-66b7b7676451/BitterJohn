@@ -45,7 +45,7 @@ jobs:
           for osarch in linux/386 linux/amd64 linux/arm linux/arm64; do
             export GOOS=$(echo $osarch | cut -d/ -f1)
             export GOARCH=$(echo $osarch | cut -d/ -f2)
-            CGO_ENABLED=0 go build -ldflags="-X github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config.Version=$VERSION -s -w" -o BitterJohn_"$GOOS"_"$GOARCH"_"$VERSION"
+            CGO_ENABLED=0 go build -ldflags="-X github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/cmd.Version=$VERSION -s -w" -o BitterJohn_"$GOOS"_"$GOARCH"_"$VERSION"
           done
       - name: Rename Binaries to Friendly Filenames
         run: |

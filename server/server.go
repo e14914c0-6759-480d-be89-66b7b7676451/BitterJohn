@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"io"
 	"strconv"
 	"time"
@@ -26,7 +27,7 @@ type Server interface {
 	io.Closer
 }
 
-type Creator func(sweetLisaHost, chatIdentifier string, arg Argument) (Server, error)
+type Creator func(sweetLisaHost config.Lisa, arg Argument) (Server, error)
 
 var Mapper = make(map[string]Creator)
 
@@ -34,10 +35,10 @@ func Register(name string, c Creator) {
 	Mapper[name] = c
 }
 
-func NewServer(protocol string, sweetLisaHost, chatIdentifier string, arg Argument) (Server, error) {
+func NewServer(protocol string, sweetLisaHost config.Lisa, arg Argument) (Server, error) {
 	creator, ok := Mapper[protocol]
 	if !ok {
 		return nil, fmt.Errorf("no server creator registered for %v", strconv.Quote(protocol))
 	}
-	return creator(sweetLisaHost, chatIdentifier, arg)
+	return creator(sweetLisaHost, arg)
 }

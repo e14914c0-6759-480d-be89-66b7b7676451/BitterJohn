@@ -1,67 +1,31 @@
 package config
 
-import (
-	"fmt"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/stevenroose/gonfig"
-	log2 "log"
-	"os"
-	"sync"
-)
+type Lisa struct {
+	Host          string `mapstructure:"host" required:"" desc:"The host of SweetLisa" json:",omitempty"`
+	ValidateToken string `mapstructure:"validateToken" required:"" desc:"The CDN token to validate whether SweetLisa can know user's IP" json:",omitempty"`
+}
+
+type John struct {
+	Listen string `mapstructure:"listen" default:"0.0.0.0:8880" desc:"Address to listen on" json:",omitempty"`
+	Log    Log    `mapstructure:"log" json:",omitempty"`
+
+	Name     string `mapstructure:"name" required:"" desc:"Server name to register" json:",omitempty"`
+	Hostname string `mapstructure:"hostname" required:"" desc:"Server hostname for users to connect" json:",omitempty"`
+	Port     int    `mapstructure:"port" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}" desc:"Server port for users to connect" json:",omitempty"`
+	Ticket   string `mapstructure:"ticket" required:"" desc:"Ticket from SweetLisa" json:",omitempty"`
+}
+
+type Log struct {
+	Level            string `mapstructure:"level" default:"warn" desc:"Optional values: trace, debug, info, warn or error" json:",omitempty"`
+	File             string `mapstructure:"file" desc:"The path of log file" json:",omitempty"`
+	MaxDays          int64  `mapstructure:"maxDays" default:"3" desc:"Maximum number of days to keep log files" json:",omitempty"`
+	DisableColor     bool   `mapstructure:"disableColor" json:",omitempty"`
+	DisableTimestamp bool   `mapstructure:"disableTimestamp" json:",omitempty"`
+}
 
 type Params struct {
-	Host                string `id:"host"`
-	Port                int    `id:"port"`
-	Listen              string `id:"listen" default:"0.0.0.0:8880" desc:"Address to listen on"`
-	SweetLisa           string `id:"sweet-lisa" desc:"The host of SweetLisa API endpoint"`
-	ChatIdentifier      string `id:"chat-identifier" desc:"The chat identifier to register"`
-	Ticket              string `id:"ticket" desc:"Ticket from SweetLisa"`
-	Name                string `id:"name" desc:"Server name to register"`
-	LogLevel            string `id:"log-level" default:"warn" desc:"Optional values: trace, debug, info, warn or error"`
-	LogFile             string `id:"log-file" desc:"The path of log file"`
-	LogMaxDays          int64  `id:"log-max-days" default:"3" desc:"Maximum number of days to keep log files"`
-	LogDisableColor     bool   `id:"log-disable-color"`
-	LogDisableTimestamp bool   `id:"log-disable-timestamp"`
-	ShowVersion         bool   `id:"version" short:"v"`
+	Lisa Lisa `mapstructure:"lisa"`
+	John John `mapstructure:"john"`
 }
 
-var Version = "debug"
-var params Params
-var skipGonfig bool
-
-func initFunc() {
-	if !skipGonfig {
-		err := gonfig.Load(&params, gonfig.Conf{
-			FileDisable:       true,
-			FlagIgnoreUnknown: false,
-			EnvPrefix:         "JOHN_",
-		})
-		if err != nil {
-			if err.Error() != "unexpected word while parsing flags: '-test.v'" {
-				log2.Fatal(err)
-			}
-		}
-	}
-	if params.ShowVersion {
-		fmt.Println(Version)
-		os.Exit(0)
-	}
-	logWay := "console"
-	if params.LogFile != "" {
-		logWay = "file"
-	}
-	log.InitLog(logWay, params.LogFile, params.LogLevel, params.LogMaxDays, params.LogDisableColor, params.LogDisableTimestamp)
-}
-
-var once sync.Once
-
-func GetConfig() *Params {
-	once.Do(initFunc)
-	return &params
-}
-
-func SetConfig(config Params) {
-	skipGonfig = true
-	params = config
-	return
-}
+var ParamsObj Params

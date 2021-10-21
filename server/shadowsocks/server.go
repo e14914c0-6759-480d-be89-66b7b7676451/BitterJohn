@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
@@ -26,7 +27,7 @@ const (
 
 type Server struct {
 	closed         chan struct{}
-	sweetLisaHost  string
+	sweetLisa      config.Lisa
 	chatIdentifier string
 	typ            string
 	arg            server.Argument
@@ -58,12 +59,11 @@ func (p *Passage) Use() (use server.PassageUse) {
 	}
 }
 
-func New(sweetLisaHost, chatIdentifier string, arg server.Argument) (server.Server, error) {
+func New(sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
 	s := Server{
 		userContextPool:        (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
 		nm:                     NewUDPConnMapping(),
-		sweetLisaHost:          sweetLisaHost,
-		chatIdentifier:         chatIdentifier,
+		sweetLisa:              sweetLisaHost,
 		closed:                 make(chan struct{}),
 		arg:                    arg,
 		passageContentionCache: server.NewContentionCache(),
@@ -111,7 +111,7 @@ func (s *Server) register() error {
 			break
 		}
 	}
-	users, err := api.Register(s.sweetLisaHost, s.chatIdentifier, model.Server{
+	users, err := api.Register(s.sweetLisa.Host, model.Server{
 		Ticket: s.arg.Ticket,
 		Name:   s.arg.Name,
 		Host:   s.arg.Host,
@@ -125,7 +125,7 @@ func (s *Server) register() error {
 	if err != nil {
 		return err
 	}
-	log.Alert("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisaHost))
+	log.Alert("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisa.Host))
 	s.lastAlive = time.Now()
 	// sweetLisa can replace the manager key here
 	if err := s.SyncPassages(users); err != nil {

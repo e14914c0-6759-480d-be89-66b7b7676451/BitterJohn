@@ -70,3 +70,12 @@ func Change(from interface{}, to interface{}, keyFunc func(elem interface{}) str
 	}
 	return vToRemove.Interface(), vToAdd.Interface()
 }
+
+func MustMapKeys(m interface{}) (keys []string) {
+	v := reflect.ValueOf(m)
+	vKeys := v.MapKeys()
+	for _, k := range vKeys {
+		keys = append(keys, k.String())
+	}
+	return keys
+}

@@ -7,14 +7,19 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
 )
 
-func Register(endpointHost, chatIdentifier string, info model.Server) (users []server.Passage, err error) {
-	//ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	//defer cancel()
+func Register(endpointHost string, info model.Server) (users []server.Passage, err error) {
+	if hostname, ok := TrustedHost(endpointHost); !ok {
+		cname, _ := net.LookupCNAME(hostname)
+		if _, ok = TrustedHost(cname); !ok {
+			return nil, fmt.Errorf("untrusted host and cname: %v %v", endpointHost, cname)
+		}
+	}
 	b, err := jsoniter.Marshal(info)
 	if err != nil {
 		return nil, err
@@ -22,7 +27,7 @@ func Register(endpointHost, chatIdentifier string, info model.Server) (users []s
 	endpoint := url.URL{
 		Scheme: "https",
 		Host:   endpointHost,
-		Path:   path.Join("api", chatIdentifier, info.Ticket, "register"),
+		Path:   path.Join("api", info.Ticket, "register"),
 	}
 	req, err := http.NewRequestWithContext(context.TODO(), "POST", endpoint.String(), bytes.NewReader(b))
 	if err != nil {

@@ -6,16 +6,22 @@ Wants=network.target nss-lookup.target
 
 [Service]
 Type=simple
+{{if not .ForUser}}
 User=nobody
-Restart=always
-LimitNOFILE=102400
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
-Environment="GODEBUG=madvdontneed=1"
-{{range .Envs}}Environment="{{.Name}}={{.Value}}"
+{{else}}
+# Note that "CapabilityBoundingSet=CAP_NET_BIND_SERVICE" is
+# missing in the user unit because systemd 232 is unable to
+# reduce its own capabilities ("Failed at step CAPABILITIES
+# spawning /home/<username>/bin/BitterJohn: Operation not
+# permitted")
 {{end}}
-ExecStart=/usr/bin/BitterJohn --log-disable-timestamp
+Restart=always
+LimitNOFILE=102400
+Environment="GODEBUG=madvdontneed=1"
+ExecStart={{.Bin}} run --log-disable-timestamp{{range .Args}} {{.}}{{end}}
 
 [Install]
 WantedBy=multi-user.target
