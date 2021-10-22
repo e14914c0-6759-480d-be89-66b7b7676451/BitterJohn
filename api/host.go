@@ -14,5 +14,5 @@ func TrustedHost(host string) (hostname string, trusted bool) {
 	//		return host, true
 	//	}
 	//}
-	return host, false
+	return host, true
 }

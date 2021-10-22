@@ -66,10 +66,11 @@ nextField:
 	for i := 0; i < ift.NumField(); i++ {
 		v := ifv.Field(i)
 		t := ift.Field(i)
-		tv, ok := t.Tag.Lookup("mapstructure")
+		tv, ok := t.Tag.Lookup("json")
 		if !ok {
 			continue
 		}
+		tv = strings.SplitN(tv, ",", 2)[0]
 		switch v.Kind() {
 		case reflect.Struct:
 			if err := b.bindEnvs(v.Interface(), append(parts, tv)...); err != nil {
@@ -104,7 +105,7 @@ nextField:
 }
 
 func (b *EnvBinder) bindKey(key string, expr string) (ok bool, err error) {
-	//	support `mapstructure:"port" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}"`
+	//	support `json:"port" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}"`
 	tmpl, err := template.New(key).Funcs(sprig.TxtFuncMap()).Parse(expr)
 	if err != nil {
 		return false, fmt.Errorf("failed to parse default value of key %v: %w", key, err)

@@ -32,15 +32,15 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			user, _ := cmd.Flags().GetBool("user")
 			genConfig, _ := cmd.Flags().GetBool("gen-config")
-			Install(os.Args, F, user, genConfig)
+			Install(F, user, genConfig)
 		},
 	}
 )
 
 func init() {
 	u, _ := user.Current()
-	installCmd.PersistentFlags().Bool("user", false, fmt.Sprintf("install only for current user (%v)", u.Username))
-	installCmd.PersistentFlags().Bool("gen-config", false, "generate config from user input")
+	installCmd.PersistentFlags().BoolP("user", "u", false, fmt.Sprintf("install only for current user (%v)", u.Username))
+	installCmd.PersistentFlags().BoolP("gen-config", "g", false, "generate config from user input")
 }
 
 func hostValidator(str string) error {
@@ -102,25 +102,39 @@ func addressValidator(str string) error {
 	return portValidator(port)
 }
 
-func getParams() (*config.Params, error) {
+func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	rand.Seed(time.Now().Unix())
+	if _, err := os.Stat(targetConfigPath); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, false, err
+		}
+		prompt := promptui.Prompt{
+			Label:     fmt.Sprintf("The file %v exists. Overwrite?", targetConfigPath),
+			IsConfirm: true,
+			Default:   "n",
+		}
+		_, err := prompt.Run()
+		if err != nil {
+			return nil, false, nil
+		}
+	}
 	prompt := promptui.Prompt{
-		Label:    "Host of Sweet Lisa",
+		Label:    "The host of SweetLisa",
 		Validate: hostValidator,
 	}
 	sweetLisaHost, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-
-	prompt = promptui.Prompt{
-		Label:    "Validate Token",
-		Validate: minLengthValidatorFactory(5),
-	}
-	validateToken, err := prompt.Run()
-	if err != nil {
-		return nil, err
-	}
+	//
+	//prompt = promptui.Prompt{
+	//	Label:    "The CDN token to validate whether SweetLisa can know user's IP",
+	//	Validate: minLengthValidatorFactory(5),
+	//}
+	//validateToken, err := prompt.Run()
+	//if err != nil {
+	//	return nil, false, err
+	//}
 
 	prompt = promptui.Prompt{
 		Label:    "Server Ticket",
@@ -128,7 +142,7 @@ func getParams() (*config.Params, error) {
 	}
 	ticket, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	prompt = promptui.Prompt{
@@ -139,46 +153,46 @@ func getParams() (*config.Params, error) {
 	}
 	listen, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	_, listenPort, err := net.SplitHostPort(listen)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	prompt = promptui.Prompt{
-		Label:    "Host to show",
+		Label:    "Server hostname for users to connect",
 		Validate: hostValidator,
 	}
 	hostname, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	prompt = promptui.Prompt{
-		Label:     "Port to show",
+		Label:     "Server port for users to connect",
 		Default:   listenPort,
 		Validate:  portValidator,
 		AllowEdit: true,
 	}
 	strPort, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	port, _ := strconv.Atoi(strPort)
 
 	prompt = promptui.Prompt{
-		Label:    "Server Name to show",
+		Label:    "Server name to register",
 		Validate: minLengthValidatorFactory(5),
 	}
 	name, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	return &config.Params{
 		Lisa: config.Lisa{
 			Host:          sweetLisaHost,
-			ValidateToken: validateToken,
+			//ValidateToken: validateToken,
 		},
 		John: config.John{
 			Listen:   listen,
@@ -187,7 +201,7 @@ func getParams() (*config.Params, error) {
 			Port:     port,
 			Ticket:   ticket,
 		},
-	}, nil
+	}, true, nil
 }
 
 func writeFiles(f embed.FS, configFilePath string, params *config.Params, serviceFilePath string, binPath string, forUser bool) (err error) {
@@ -209,22 +223,27 @@ func writeFiles(f embed.FS, configFilePath string, params *config.Params, servic
 		runningArgs = append(runningArgs, fmt.Sprintf("--config=%v", strconv.Quote(configFilePath)))
 	}
 	serviceArgs["Args"] = runningArgs
-	// write service file
+
+	// render the service file template
 	t, _ := template.ParseFS(f, "templates/*")
 	var buf bytes.Buffer
 	if err := t.ExecuteTemplate(&buf, "BitterJohn.service", serviceArgs); err != nil {
 		return err
 	}
-	log.Info("Install %v", serviceFilePath)
-	if err = os.WriteFile(serviceFilePath, buf.Bytes(), 0644); err != nil {
-		return err
+
+	// check the files diff and write service file
+	if b, err := os.ReadFile(serviceFilePath); err != nil || !bytes.Equal(b, buf.Bytes()) {
+		log.Info("Install %v", serviceFilePath)
+		if err = os.WriteFile(serviceFilePath, buf.Bytes(), 0644); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func Install(args []string, f embed.FS, forUser bool, genConfig bool) {
+func Install(f embed.FS, forUser bool, genConfig bool) {
 	var (
-		targetConfigPath  = "/etc/BitterJohn/BitterJohn_gen.json"
+		targetConfigPath  = "/etc/BitterJohn/BitterJohn.json"
 		targetBinPath     = "/usr/bin/BitterJohn"
 		targetServicePath = "/usr/lib/systemd/system/BitterJohn.service"
 		serviceArgs       = []string{"--now"}
@@ -234,7 +253,7 @@ func Install(args []string, f embed.FS, forUser bool, genConfig bool) {
 		log.Fatal("%v", err)
 	}
 	if forUser {
-		targetConfigPath = filepath.Join(u.HomeDir, ".config", "BitterJohn", "BitterJohn_gen.json")
+		targetConfigPath = filepath.Join(u.HomeDir, ".config", "BitterJohn", "BitterJohn.json")
 		targetBinPath = filepath.Join(u.HomeDir, "bin", "BitterJohn")
 		targetServicePath = filepath.Join(u.HomeDir, ".config", "systemd", "user", "BitterJohn.service")
 		serviceArgs = append(serviceArgs, "--user")
@@ -246,18 +265,28 @@ func Install(args []string, f embed.FS, forUser bool, genConfig bool) {
 	}
 	_ = os.MkdirAll(filepath.Dir(targetBinPath), 0755)
 	_ = os.MkdirAll(filepath.Dir(targetServicePath), 0755)
-	var params *config.Params
+	var (
+		params          *config.Params
+		overwriteConfig bool
+	)
 	if genConfig {
 		// generate service file
-		params, err = getParams()
+		params, overwriteConfig, err = getParams(targetConfigPath)
 		if err != nil {
 			log.Fatal("%v", err)
 		}
+		if !overwriteConfig {
+			os.Exit(0)
+		}
 	}
 	// copy binary
-	if args[0] != targetBinPath {
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatal("failed to copy binary: %v", err)
+	}
+	if ex != targetBinPath {
 		log.Info("Install %v", targetBinPath)
-		if err := copyfile.CopyFile(args[0], targetBinPath); err != nil {
+		if err = copyfile.CopyFile(ex, targetBinPath); err != nil {
 			log.Fatal("failed to copy binary: %v", err)
 		}
 		_ = os.Chmod(targetBinPath, 0755)

@@ -1,7 +1,7 @@
 package bufferredConn
 
 import (
-	"bufio"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/zeroalloc/bufio"
 	"net"
 )
 
@@ -20,6 +20,11 @@ func NewBufferedConnSize(c net.Conn, n int) BufferedConn {
 
 func (b BufferedConn) Peek(n int) ([]byte, error) {
 	return b.r.Peek(n)
+}
+
+func (b BufferedConn) Close() error {
+	b.r.Put()
+	return b.Conn.Close()
 }
 
 func (b BufferedConn) Read(p []byte) (int, error) {

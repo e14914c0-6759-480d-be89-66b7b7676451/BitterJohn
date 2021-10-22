@@ -57,7 +57,7 @@ func BytesSizeForMetadata(firstTwoByte []byte) (int, error) {
 	case MetadataTypeMsg:
 		return 1 + 1 + 4, nil
 	default:
-		return 0, fmt.Errorf("%w: invalid type: %v", ErrInvalidMetadata, firstTwoByte[1])
+		return 0, fmt.Errorf("BytesSizeForMetadata: %w: invalid type: %v", ErrInvalidMetadata, firstTwoByte[1])
 	}
 }
 
@@ -93,7 +93,7 @@ func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
 		meta.LenMsgBody = binary.BigEndian.Uint32(bytesMetadata[2:])
 		return meta, nil
 	default:
-		return nil, fmt.Errorf("%w: invalid type: %v", ErrInvalidMetadata, meta.Type)
+		return nil, fmt.Errorf("NewMetadata: %w: invalid type: %v", ErrInvalidMetadata, meta.Type)
 	}
 }
 

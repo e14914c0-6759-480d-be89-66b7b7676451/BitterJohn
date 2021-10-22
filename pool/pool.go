@@ -9,8 +9,8 @@ import (
 
 const (
 	// number of pools.
-	num        = 17
-	maxsize    = 1 << (num - 1)
+	num     = 17
+	maxsize = 1 << (num - 1)
 )
 
 var (
@@ -45,6 +45,15 @@ func Get(size int) []byte {
 		return pools[i].Get().([]byte)[:size]
 	}
 	return make([]byte, size)
+}
+
+// GetZero returns buffer and set all the values to 0
+func GetZero(size int) []byte {
+	b := Get(size)
+	for i := range b {
+		b[i] = 0
+	}
+	return b
 }
 
 // Put puts a buffer into pool.

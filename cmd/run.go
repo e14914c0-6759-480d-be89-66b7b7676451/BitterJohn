@@ -17,19 +17,25 @@ var (
 		Use:   "run",
 		Short: "Run BitterJohn in the foreground",
 		Run: func(cmd *cobra.Command, args []string) {
+			v.BindPFlag("john.log.level", cmd.PersistentFlags().Lookup("log-level"))
+			v.BindPFlag("john.log.file", cmd.PersistentFlags().Lookup("log-file"))
+			v.BindPFlag("john.log.maxDays", cmd.PersistentFlags().Lookup("log-max-days"))
+			v.BindPFlag("john.log.disableTimestamp", cmd.PersistentFlags().Lookup("log-disable-timestamp"))
+			v.BindPFlag("john.log.disableColor", cmd.PersistentFlags().Lookup("log-disable-color"))
+
 			Run()
 		},
 	}
+	v = viper.New()
 )
 
 func init() {
 	runCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is BitterJohn.json)")
-
-	runCmd.PersistentFlags().StringVar(&config.ParamsObj.John.Log.Level, "log-level", "", "optional values: trace, debug, info, warn or error (default is warn)")
-	runCmd.PersistentFlags().StringVar(&config.ParamsObj.John.Log.File, "log-file", "", "the path of log file")
-	runCmd.PersistentFlags().Int64Var(&config.ParamsObj.John.Log.MaxDays, "log-max-days", 0, "maximum number of days to keep log files (default is 3)")
-	runCmd.PersistentFlags().BoolVar(&config.ParamsObj.John.Log.DisableTimestamp, "log-disable-timestamp", false, "disable the output of timestamp")
-	runCmd.PersistentFlags().BoolVar(&config.ParamsObj.John.Log.DisableColor, "log-disable-color", false, "disable the color of log")
+	runCmd.PersistentFlags().String("log-level", "", "optional values: trace, debug, info, warn or error (default is warn)")
+	runCmd.PersistentFlags().String("log-file", "", "the path of log file")
+	runCmd.PersistentFlags().Int64("log-max-days", 0, "maximum number of days to keep log files (default is 3)")
+	runCmd.PersistentFlags().Bool("log-disable-timestamp", false, "disable the output of timestamp")
+	runCmd.PersistentFlags().Bool("log-disable-color", false, "disable the color of log")
 }
 
 func Run() {
@@ -60,16 +66,15 @@ func Run() {
 }
 
 func initConfig() {
-	v := viper.New()
-
 	if cfgFile != "" {
 		// Use config file from the flag.
 		v.SetConfigFile(cfgFile)
 	} else {
 		v.AddConfigPath("./")
 		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-		v.AddConfigPath(filepath.Join(home, "BitterJohn"))
+		if err == nil {
+			v.AddConfigPath(filepath.Join(home, "BitterJohn"))
+		}
 		v.AddConfigPath(filepath.Join("etc", "BitterJohn"))
 		v.SetConfigType("json")
 		v.SetConfigName("BitterJohn")
@@ -79,7 +84,7 @@ func initConfig() {
 	} else if err != nil {
 		switch err.(type) {
 		default:
-			log.Fatal("Fatal error loading config file: %s", err)
+			log.Fatal("Fatal error loading config file: %s: %s", v.ConfigFileUsed(), err)
 		case viper.ConfigFileNotFoundError:
 			log.Warn("No config file found. Using defaults and environment variables")
 		}
@@ -94,6 +99,7 @@ func initConfig() {
 	if err := v.Unmarshal(&config.ParamsObj); err != nil {
 		log.Fatal("Fatal error loading config: %s", err)
 	}
+	log.Trace("config: %v", v.AllSettings())
 
 	initLog()
 }

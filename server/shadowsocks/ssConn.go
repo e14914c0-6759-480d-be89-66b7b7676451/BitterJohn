@@ -18,6 +18,10 @@ import (
 	"sync"
 )
 
+const (
+	TCPChunkMaxLen = (1 << (16 - 2)) - 1
+)
+
 var (
 	ErrFailAuth       = fmt.Errorf("fail to authenticate")
 	ErrFailInitCihper = fmt.Errorf("fail to initiate cipher")
@@ -46,6 +50,14 @@ type Key struct {
 	MasterKey  []byte
 }
 
+func EncryptedPayloadLen(plainTextLen int, tagLen int) int {
+	n := plainTextLen / TCPChunkMaxLen
+	if plainTextLen%TCPChunkMaxLen > 0 {
+		n++
+	}
+	return plainTextLen + n*(2+tagLen+tagLen)
+}
+
 func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, err error) {
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
@@ -54,9 +66,15 @@ func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, e
 		Conn:       conn,
 		cipherConf: conf,
 		masterKey:  masterKey,
-		nonceRead:  make([]byte, conf.NonceLen),
-		nonceWrite: make([]byte, conf.NonceLen),
+		nonceRead:  pool.GetZero(conf.NonceLen),
+		nonceWrite: pool.GetZero(conf.NonceLen),
 	}, nil
+}
+
+func (c *SSConn) Close() error {
+	pool.Put(c.nonceWrite)
+	pool.Put(c.nonceRead)
+	return c.Conn.Close()
 }
 
 func (c *SSConn) Read(b []byte) (n int, err error) {
@@ -142,11 +160,13 @@ func (c *SSConn) readChunk() ([]byte, error) {
 }
 
 func (c *SSConn) Write(b []byte) (n int, err error) {
+	var buf []byte
+	var offset int
 	c.onceWrite.Do(func() {
-		var salt = pool.Get(c.cipherConf.SaltLen)
-		defer pool.Put(salt)
-		_, err = rand.Read(salt)
+		buf = pool.Get(c.cipherConf.SaltLen + EncryptedPayloadLen(len(b), c.cipherConf.TagLen))
+		_, err = rand.Read(buf[:c.cipherConf.SaltLen])
 		if err != nil {
+			pool.Put(buf)
 			return
 		}
 		subKey := pool.Get(c.cipherConf.KeyLen)
@@ -154,42 +174,39 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 		kdf := hkdf.New(
 			sha1.New,
 			c.masterKey,
-			salt,
+			buf[:c.cipherConf.SaltLen],
 			ReusedInfo,
 		)
 		_, err = io.ReadFull(kdf, subKey)
 		if err != nil {
+			pool.Put(buf)
 			return
 		}
 		c.cipherWrite, err = c.cipherConf.NewCipher(subKey)
-
-		c.Conn.Write(salt)
+		offset += c.cipherConf.SaltLen
 	})
+	if buf == nil {
+		buf = pool.Get(EncryptedPayloadLen(len(b), c.cipherConf.TagLen))
+	}
+	defer pool.Put(buf)
 	if c.cipherWrite == nil {
 		return 0, fmt.Errorf("%w: %v", ErrFailInitCihper, err)
 	}
-	encLen := pool.Get(2 + c.cipherConf.TagLen)
-	encText := pool.Get(len(b) + c.cipherConf.TagLen)
-	defer pool.Put(encLen)
-	defer pool.Put(encText)
-	for i := 0; i < len(b); i += 65536 {
+	for i := 0; i < len(b); i += TCPChunkMaxLen {
 		// write chunk
-		var l = common.Min(i+65536, len(b)) - i
-		binary.BigEndian.PutUint16(encLen, uint16(l))
-		_ = c.cipherWrite.Seal(encLen[:0], c.nonceWrite, encLen[:2], nil)
-		nn, err := c.Conn.Write(encLen)
-		if err != nil {
-			return 0, err
-		}
-		n += nn
+		var l = common.Min(TCPChunkMaxLen, len(b)-i)
+		binary.BigEndian.PutUint16(buf[offset:], uint16(l))
+		_ = c.cipherWrite.Seal(buf[offset:offset], c.nonceWrite, buf[offset:offset+2], nil)
+		offset += 2 + c.cipherConf.TagLen
 		common.BytesIncLittleEndian(c.nonceWrite)
-		_ = c.cipherWrite.Seal(encText[:0], c.nonceWrite, b[i:i+l], nil)
-		nn, err = c.Conn.Write(encText[:l+c.cipherConf.TagLen])
-		if err != nil {
-			return 0, err
-		}
+
+		_ = c.cipherWrite.Seal(buf[offset:offset], c.nonceWrite, b[i:i+l], nil)
+		offset += l + c.cipherConf.TagLen
 		common.BytesIncLittleEndian(c.nonceWrite)
-		n += nn
+	}
+	_, err = c.Conn.Write(buf)
+	if err != nil {
+		return 0, err
 	}
 	return len(b), err
 }
@@ -255,12 +272,16 @@ func DecryptUDP(key Key, shadowBytes []byte) (plainText []byte, err error) {
 
 func (c *SSConn) ReadMetadata() (metadata *Metadata, err error) {
 	var firstTwoBytes = pool.Get(2)
-	_, err = io.ReadFull(c, firstTwoBytes)
+	defer pool.Put(firstTwoBytes)
+	if _, err = io.ReadFull(c, firstTwoBytes); err != nil {
+		return nil, err
+	}
 	n, err := BytesSizeForMetadata(firstTwoBytes)
 	if err != nil {
 		return nil, err
 	}
 	var bytesMetadata = pool.Get(n)
+	defer pool.Put(bytesMetadata)
 	copy(bytesMetadata, firstTwoBytes)
 	_, err = io.ReadFull(c, bytesMetadata[2:])
 	if err != nil {
@@ -273,8 +294,11 @@ func (c *SSConn) ReadMetadata() (metadata *Metadata, err error) {
 	return metadata, nil
 }
 
-func CalcPaddingLen(masterKey []byte, reqBody []byte, req bool) (length int) {
-	maxPadding := common.Max(int(10*float64(len(reqBody))/(1+math.Log(float64(len(reqBody)))))-len(reqBody), 0)
+func CalcPaddingLen(masterKey []byte, bodyWithoutAddr []byte, req bool) (length int) {
+	maxPadding := common.Max(int(10*float64(len(bodyWithoutAddr))/(1+math.Log(float64(len(bodyWithoutAddr)))))-len(bodyWithoutAddr), 0)
+	if maxPadding == 0 {
+		return 0
+	}
 	var h hash.Hash32
 	if req {
 		h = fnv.New32a()
@@ -282,7 +306,7 @@ func CalcPaddingLen(masterKey []byte, reqBody []byte, req bool) (length int) {
 		h = fnv.New32()
 	}
 	h.Write(masterKey)
-	h.Write(reqBody)
+	h.Write(bodyWithoutAddr)
 	return int(h.Sum32()) % maxPadding
 }
 
@@ -292,11 +316,14 @@ func (c *SSConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error)
 		addr.Type = MetadataTypeMsg
 		lenPadding := CalcPaddingLen(c.masterKey, reqBody, true)
 		addr.LenMsgBody = uint32(len(reqBody))
-		c.Write(addr.Bytes())
-		c.Write(reqBody)
-		padding := pool.Get(lenPadding)
-		defer pool.Put(padding)
-		c.Write(padding)
+		bAddr := addr.BytesFromPool()
+		defer pool.Put(bAddr)
+		buf := pool.Get(len(bAddr) + len(reqBody) + lenPadding)
+		defer pool.Put(buf)
+		copy(buf, bAddr)
+		copy(buf[len(bAddr):], reqBody)
+		log.Trace("GetTurn: write to %v: %v", c.RemoteAddr().String(), buf)
+		c.Write(buf)
 	}()
 	respMeta, err := c.ReadMetadata()
 	if err != nil {
@@ -311,10 +338,12 @@ func (c *SSConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error)
 		return nil, fmt.Errorf("%w: response body length is shorter than it should be", ErrFailAuth)
 	}
 	lenPadding := CalcPaddingLen(c.masterKey, resp, false)
-	padding := pool.Get(lenPadding)
-	defer pool.Put(padding)
-	if _, err := io.ReadFull(c, padding); err != nil {
-		return nil, fmt.Errorf("%w: padding length is shorter than it should be", ErrFailAuth)
+	if lenPadding > 0 {
+		padding := pool.Get(lenPadding)
+		defer pool.Put(padding)
+		if _, err := io.ReadFull(c, padding); err != nil {
+			return nil, fmt.Errorf("%w: padding length is shorter than it should be: %v", ErrFailAuth, err)
+		}
 	}
 	return resp, nil
 }

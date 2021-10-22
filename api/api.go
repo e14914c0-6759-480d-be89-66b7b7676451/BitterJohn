@@ -27,7 +27,7 @@ func Register(endpointHost string, info model.Server) (users []server.Passage, e
 	endpoint := url.URL{
 		Scheme: "https",
 		Host:   endpointHost,
-		Path:   path.Join("api", info.Ticket, "register"),
+		Path:   path.Join("api", "ticket", info.Ticket, "register"),
 	}
 	req, err := http.NewRequestWithContext(context.TODO(), "POST", endpoint.String(), bytes.NewReader(b))
 	if err != nil {

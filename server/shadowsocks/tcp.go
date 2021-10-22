@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferredConn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	io2 "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/zeroalloc/io"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
@@ -17,7 +18,8 @@ import (
 
 const (
 	// BasicLen is the basic auth length of [salt][encrypted payload length][length tag][encrypted payload][payload tag]
-	BasicLen = 32 + 2 + 16
+	BasicLen      = 32 + 2 + 16
+	TCPBufferSize = 32 * 1024
 )
 
 var ErrPassageAbuse = fmt.Errorf("passage abuse")
@@ -38,10 +40,12 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 		return err
 	}
 	lenPadding := CalcPaddingLen(passage.inMasterKey, req, true)
-	var padding = pool.Get(lenPadding)
-	defer pool.Put(padding)
-	if _, err := io.ReadFull(crw, padding); err != nil {
-		return err
+	if lenPadding > 0 {
+		var padding = pool.Get(lenPadding)
+		defer pool.Put(padding)
+		if _, err := io.ReadFull(crw, padding); err != nil {
+			return fmt.Errorf("%w: padding length is shorter than it should be: %v", ErrFailAuth, err)
+		}
 	}
 
 	var respMeta = Metadata{
@@ -49,17 +53,19 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 		Cmd:  MetadataCmdResponse,
 	}
 	var resp []byte
+	var buf bytes.Buffer
 	switch reqMetadata.Cmd {
 	case MetadataCmdPing:
 		if !bytes.Equal(req, []byte("ping")) {
 			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(req)), strconv.Quote("ping"))
 		}
+		log.Trace("Received a ping message")
 		s.lastAlive = time.Now()
 
 		respMeta.LenMsgBody = 4
 		bAddr := respMeta.BytesFromPool()
 		defer pool.Put(bAddr)
-		crw.Write(bAddr)
+		buf.Write(bAddr)
 
 		resp = pool.Get(int(respMeta.LenMsgBody))
 		defer pool.Put(resp)
@@ -77,6 +83,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 			}
 			serverPassages = append(serverPassages, user)
 		}
+		log.Info("Server asked to SyncPassages")
 		// sweetLisa can replace the manager passage here
 		if err := s.SyncPassages(serverPassages); err != nil {
 			return err
@@ -85,7 +92,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 		respMeta.LenMsgBody = 2
 		bAddr := respMeta.BytesFromPool()
 		defer pool.Put(bAddr)
-		crw.Write(bAddr)
+		buf.Write(bAddr)
 
 		resp = pool.Get(int(respMeta.LenMsgBody))
 		defer pool.Put(resp)
@@ -94,21 +101,25 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 		return fmt.Errorf("%w: unexpected metadata cmd type: %v", ErrFailAuth, reqMetadata.Cmd)
 	}
 
-	crw.Write(resp)
-	padding = pool.Get(CalcPaddingLen(passage.inMasterKey, resp, false))
-	defer pool.Put(padding)
-	crw.Write(padding)
+	buf.Write(resp)
+	lenPadding = CalcPaddingLen(passage.inMasterKey, resp[len(resp)-int(respMeta.LenMsgBody):], false)
+	if lenPadding > 0 {
+		padding := pool.Get(lenPadding)
+		defer pool.Put(padding)
+		buf.Write(padding)
+	}
+	crw.Write(buf.Bytes())
 	return nil
 }
 
 func (s *Server) handleTCP(conn net.Conn) error {
-	bConn := bufferredConn.NewBufferedConnSize(conn, MTUTrie.GetMTU(conn.LocalAddr().(*net.TCPAddr).IP))
-	defer bConn.Close()
+	bConn := bufferredConn.NewBufferedConnSize(conn, TCPBufferSize)
 	passage, _ := s.authTCP(bConn)
 	if passage == nil {
 		// Auth fail. Drain the conn
 		log.Info("Auth fail. Drain the conn from: %v", conn.RemoteAddr().String())
 		_, err := io.Copy(io.Discard, conn)
+		bConn.Close()
 		return err
 	}
 
@@ -119,6 +130,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		passageKey := passage.In.Argument.Hash()
 		accept, conflictIP := s.passageContentionCache.Check(passageKey, contentionDuration, thisIP)
 		if !accept {
+			bConn.Close()
 			return fmt.Errorf("%w: from %v and %v: contention detected", ErrPassageAbuse, thisIP.String(), conflictIP.String())
 		}
 	}
@@ -128,8 +140,10 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	var lConn net.Conn
 	crw, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey)
 	if err != nil {
+		bConn.Close()
 		return err
 	}
+	defer crw.Close()
 	// Read target
 	targetMetadata, err := crw.ReadMetadata()
 	if err != nil {
@@ -169,6 +183,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 			addr := targetMetadata.BytesFromPool()
 			defer pool.Put(addr)
 			if _, err = rConn.Write(addr); err != nil {
+				rConn.Close()
 				return err
 			}
 		}
@@ -177,7 +192,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			return nil // ignore i/o timeout
 		}
-		return fmt.Errorf("[tcp] handleConn relay error: %w", err)
+		return fmt.Errorf("handleConn relay error: %w", err)
 	}
 	return nil
 }
@@ -186,12 +201,12 @@ func relayTCP(lConn, rConn net.Conn) (err error) {
 	defer rConn.Close()
 	eCh := make(chan error, 1)
 	go func() {
-		_, e := io.Copy(rConn, lConn)
+		_, e := io2.Copy(rConn, lConn)
 		rConn.SetDeadline(time.Now())
 		lConn.SetDeadline(time.Now())
 		eCh <- e
 	}()
-	_, e := io.Copy(lConn, rConn)
+	_, e := io2.Copy(lConn, rConn)
 	rConn.SetDeadline(time.Now())
 	lConn.SetDeadline(time.Now())
 	if e != nil {

@@ -28,7 +28,6 @@ const (
 type Server struct {
 	closed         chan struct{}
 	sweetLisa      config.Lisa
-	chatIdentifier string
 	typ            string
 	arg            server.Argument
 	lastAlive      time.Time
@@ -125,7 +124,7 @@ func (s *Server) register() error {
 	if err != nil {
 		return err
 	}
-	log.Alert("Succeed to register for chat %v at %v", strconv.Quote(s.chatIdentifier), strconv.Quote(s.sweetLisa.Host))
+	log.Alert("Succeed to register at %v", strconv.Quote(s.sweetLisa.Host))
 	s.lastAlive = time.Now()
 	// sweetLisa can replace the manager key here
 	if err := s.SyncPassages(users); err != nil {

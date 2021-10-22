@@ -1,31 +1,31 @@
 package config
 
 type Lisa struct {
-	Host          string `mapstructure:"host" required:"" desc:"The host of SweetLisa" json:",omitempty"`
-	ValidateToken string `mapstructure:"validateToken" required:"" desc:"The CDN token to validate whether SweetLisa can know user's IP" json:",omitempty"`
+	Host          string `json:"host" required:"" desc:"The host of SweetLisa" json:""`
+	//ValidateToken string `json:"validateToken" required:"" desc:"The CDN token to validate whether SweetLisa can know user's IP"`
 }
 
 type John struct {
-	Listen string `mapstructure:"listen" default:"0.0.0.0:8880" desc:"Address to listen on" json:",omitempty"`
-	Log    Log    `mapstructure:"log" json:",omitempty"`
+	Listen string `json:"listen,omitempty" default:"0.0.0.0:8880" desc:"Address to listen on"`
+	Log    Log    `json:"log,omitempty"`
 
-	Name     string `mapstructure:"name" required:"" desc:"Server name to register" json:",omitempty"`
-	Hostname string `mapstructure:"hostname" required:"" desc:"Server hostname for users to connect" json:",omitempty"`
-	Port     int    `mapstructure:"port" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}" desc:"Server port for users to connect" json:",omitempty"`
-	Ticket   string `mapstructure:"ticket" required:"" desc:"Ticket from SweetLisa" json:",omitempty"`
+	Name     string `json:"name" required:"" desc:"Server name to register"`
+	Hostname string `json:"hostname" required:"" desc:"Server hostname for users to connect"`
+	Port     int    `json:"port,omitempty" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}" desc:"Server port for users to connect"`
+	Ticket   string `json:"ticket" required:"" desc:"Ticket from SweetLisa"`
 }
 
 type Log struct {
-	Level            string `mapstructure:"level" default:"warn" desc:"Optional values: trace, debug, info, warn or error" json:",omitempty"`
-	File             string `mapstructure:"file" desc:"The path of log file" json:",omitempty"`
-	MaxDays          int64  `mapstructure:"maxDays" default:"3" desc:"Maximum number of days to keep log files" json:",omitempty"`
-	DisableColor     bool   `mapstructure:"disableColor" json:",omitempty"`
-	DisableTimestamp bool   `mapstructure:"disableTimestamp" json:",omitempty"`
+	Level            string `json:"level,omitempty" default:"warn" desc:"Optional values: trace, debug, info, warn or error"`
+	File             string `json:"file,omitempty" desc:"The path of log file"`
+	MaxDays          int64  `json:"maxDays,omitempty" default:"3" desc:"Maximum number of days to keep log files"`
+	DisableColor     bool   `json:"disableColor,omitempty"`
+	DisableTimestamp bool   `json:"disableTimestamp,omitempty"`
 }
 
 type Params struct {
-	Lisa Lisa `mapstructure:"lisa"`
-	John John `mapstructure:"john"`
+	Lisa Lisa `json:"lisa"`
+	John John `json:"john"`
 }
 
 var ParamsObj Params
