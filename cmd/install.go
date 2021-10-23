@@ -127,14 +127,14 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		return nil, false, err
 	}
 	//
-	//prompt = promptui.Prompt{
-	//	Label:    "The CDN token to validate whether SweetLisa can know user's IP",
-	//	Validate: minLengthValidatorFactory(5),
-	//}
-	//validateToken, err := prompt.Run()
-	//if err != nil {
-	//	return nil, false, err
-	//}
+	prompt = promptui.Prompt{
+		Label:    "The CDN token to validate whether SweetLisa can know user's IP",
+		Validate: minLengthValidatorFactory(5),
+	}
+	validateToken, err := prompt.Run()
+	if err != nil {
+		return nil, false, err
+	}
 
 	prompt = promptui.Prompt{
 		Label:    "Server Ticket",
@@ -192,7 +192,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	return &config.Params{
 		Lisa: config.Lisa{
 			Host:          sweetLisaHost,
-			//ValidateToken: validateToken,
+			ValidateToken: validateToken,
 		},
 		John: config.John{
 			Listen:   listen,
