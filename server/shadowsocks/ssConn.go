@@ -103,10 +103,10 @@ func (c *SSConn) Read(b []byte) (n int, err error) {
 		return 0, fmt.Errorf("%w: %v", ErrFailInitCihper, err)
 	}
 	c.mutex.Lock()
-	if c.indexToRead < len(c.leftToRead)-1 {
+	if c.indexToRead < len(c.leftToRead) {
 		n = copy(b, c.leftToRead[c.indexToRead:])
 		c.indexToRead += n
-		if c.indexToRead == len(c.leftToRead)-1 {
+		if c.indexToRead >= len(c.leftToRead) {
 			// Put the buf back
 			pool.Put(c.leftToRead)
 		}
