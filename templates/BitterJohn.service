@@ -18,7 +18,7 @@ NoNewPrivileges=true
 # spawning /home/<username>/bin/BitterJohn: Operation not
 # permitted")
 {{end}}
-Restart=on-failure
+Restart=always
 RestartSec=5s
 LimitNOFILE=102400
 Environment="GODEBUG=madvdontneed=1"
