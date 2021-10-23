@@ -217,10 +217,15 @@ func (s *Server) Listen(addr string) (err error) {
 
 func (s *Server) Close() error {
 	close(s.closed)
-	err := s.listener.Close()
-	err2 := s.udpConn.Close()
-	if err2 != nil {
-		return err2
+	var err error
+	if s.listener != nil {
+		err = s.listener.Close()
+	}
+	if s.udpConn != nil {
+		err2 := s.udpConn.Close()
+		if err == nil {
+			err = err2
+		}
 	}
 	return err
 }
