@@ -39,14 +39,6 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 	if _, err := io.ReadFull(crw, req); err != nil {
 		return err
 	}
-	lenPadding := CalcPaddingLen(passage.inMasterKey, req, true)
-	if lenPadding > 0 {
-		var padding = pool.Get(lenPadding)
-		defer pool.Put(padding)
-		if _, err := io.ReadFull(crw, padding); err != nil {
-			return fmt.Errorf("%w: padding length is shorter than it should be: %v", ErrFailAuth, err)
-		}
-	}
 
 	var respMeta = Metadata{
 		Type: MetadataTypeMsg,
@@ -102,7 +94,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 	}
 
 	buf.Write(resp)
-	lenPadding = CalcPaddingLen(passage.inMasterKey, resp[len(resp)-int(respMeta.LenMsgBody):], false)
+	lenPadding := CalcPaddingLen(passage.inMasterKey, resp[len(resp)-int(respMeta.LenMsgBody):], false)
 	if lenPadding > 0 {
 		padding := pool.Get(lenPadding)
 		defer pool.Put(padding)

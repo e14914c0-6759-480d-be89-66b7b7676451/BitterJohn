@@ -332,18 +332,9 @@ func (c *SSConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error)
 	if respMeta.Type != MetadataTypeMsg || respMeta.Cmd != MetadataCmdResponse {
 		return nil, fmt.Errorf("%w: unexpected metadata type %v or cmd %v", ErrFailAuth, respMeta.Type, respMeta.Cmd)
 	}
-	// we know the body length but we should read all
 	resp = make([]byte, int(respMeta.LenMsgBody))
 	if _, err := io.ReadFull(c, resp); err != nil {
 		return nil, fmt.Errorf("%w: response body length is shorter than it should be", ErrFailAuth)
-	}
-	lenPadding := CalcPaddingLen(c.masterKey, resp, false)
-	if lenPadding > 0 {
-		padding := pool.Get(lenPadding)
-		defer pool.Put(padding)
-		if _, err := io.ReadFull(c, padding); err != nil {
-			return nil, fmt.Errorf("%w: padding length is shorter than it should be: %v", ErrFailAuth, err)
-		}
 	}
 	return resp, nil
 }

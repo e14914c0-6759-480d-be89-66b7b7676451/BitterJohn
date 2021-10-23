@@ -32,6 +32,7 @@ func Register(ctx context.Context, endpointHost string, validateToken string, in
 		return cdnNames, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "BitterJohn")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return cdnNames, nil, err
