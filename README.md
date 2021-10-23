@@ -4,7 +4,7 @@ Server and relay side infrastructure for RDA.
 ## Usage
 
 ```bash
-./BitterJohn install -u -g
+sudo ./BitterJohn install -g
 systemctl enable --now BitterJohn
 ```
 
