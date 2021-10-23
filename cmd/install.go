@@ -47,7 +47,9 @@ func init() {
 
 func hostValidator(str string) error {
 	e := fmt.Errorf("Invalid Host")
-	if net.ParseIP(str) == nil && !common.HasTopDomain(str) {
+	if net.ParseIP(str) != nil {
+		return nil
+	} else if !common.HasTopDomain(str) {
 		return e
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -172,7 +174,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
 			b, _ := io.ReadAll(resp.Body)
-			hostname = string(b)
+			hostname = strings.TrimSpace(string(b))
 		}
 	}
 	prompt = &promptui.Prompt{
