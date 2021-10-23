@@ -104,10 +104,9 @@ func addressValidator(str string) error {
 
 func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	rand.Seed(time.Now().Unix())
-	if _, err := os.Stat(targetConfigPath); err != nil {
-		if !os.IsNotExist(err) {
-			return nil, false, err
-		}
+	if _, err := os.Stat(targetConfigPath); err != nil && !os.IsNotExist(err) {
+		return nil, false, err
+	} else if err == nil {
 		prompt := promptui.Prompt{
 			Label:     fmt.Sprintf("The file %v exists. Overwrite?", targetConfigPath),
 			IsConfirm: true,
