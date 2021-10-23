@@ -27,11 +27,11 @@ const (
 )
 
 type Server struct {
-	closed         chan struct{}
-	sweetLisa      config.Lisa
-	typ            string
-	arg            server.Argument
-	lastAlive      time.Time
+	closed    chan struct{}
+	sweetLisa config.Lisa
+	typ       string
+	arg       server.Argument
+	lastAlive time.Time
 	// mutex protects passages
 	mutex           sync.Mutex
 	passages        []Passage
@@ -127,11 +127,7 @@ func (s *Server) register() error {
 	if err != nil {
 		return err
 	}
-<<<<<<< HEAD
-	log.Alert("Succeed to register at %v", strconv.Quote(s.sweetLisa.Host))
-=======
-	log.Alert("Succeed to register for chat %v at %v [%v]", s.chatIdentifier, s.sweetLisa.Host, cdnNames)
->>>>>>> 01a3480 (feat: validate cdn)
+	log.Alert("Succeed to register at %v (%v)", strconv.Quote(s.sweetLisa.Host), cdnNames)
 	s.lastAlive = time.Now()
 	// sweetLisa can replace the manager key here
 	if err := s.SyncPassages(users); err != nil {
