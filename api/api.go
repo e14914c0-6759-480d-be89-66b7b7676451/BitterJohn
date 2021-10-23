@@ -7,9 +7,11 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 )
 
 func Register(ctx context.Context, endpointHost string, validateToken string, info model.Server) (cdnNames string, users []server.Passage, err error) {
@@ -34,8 +36,11 @@ func Register(ctx context.Context, endpointHost string, validateToken string, in
 	if err != nil {
 		return cdnNames, nil, err
 	}
-
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		return "", nil, fmt.Errorf("SweetLisa responsed with %v: %v", strconv.Quote(resp.Status), string(b))
+	}
 	var respBody struct {
 		Code    string
 		Data    []model.Passage
