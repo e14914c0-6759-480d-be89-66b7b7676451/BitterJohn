@@ -2,7 +2,7 @@ package config
 
 type Lisa struct {
 	Host          string `json:"host" required:"" desc:"The host of SweetLisa" json:""`
-	//ValidateToken string `json:"validateToken" required:"" desc:"The CDN token to validate whether SweetLisa can know user's IP"`
+	ValidateToken string `json:"validateToken" required:"" desc:"The CDN token to validate whether SweetLisa can know user's IP"`
 }
 
 type John struct {

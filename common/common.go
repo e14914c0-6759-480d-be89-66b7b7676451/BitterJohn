@@ -1,9 +1,15 @@
 package common
 
 import (
+	crand "crypto/rand"
+	"math"
+	"math/big"
+	"math/rand"
+	"net"
 	"os/user"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -93,4 +99,32 @@ func HomeExpand(path string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(usr.HomeDir, path[1:]), nil
+}
+
+func ToIPNets(cidr []string) (nets []*net.IPNet, err error) {
+	for _, c := range cidr {
+		_, n, err := net.ParseCIDR(c)
+		if err != nil {
+			return nil, err
+		}
+		nets = append(nets, n)
+	}
+	return nets, nil
+}
+
+func StarMatch(expr string, str string) bool {
+	ok, err := regexp.MatchString(strings.ReplaceAll(regexp.QuoteMeta(expr), "\\*", ".*"), str)
+	if err != nil {
+		return false
+	}
+	return ok
+}
+
+func SeedSecurely() (err error) {
+	n, err := crand.Int(crand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		return err
+	}
+	rand.Seed(n.Int64())
+	return nil
 }

@@ -1,16 +1,23 @@
 package cmd
 
 import (
+	"context"
+	"errors"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdnValidator"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viperTool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
+	"time"
 )
 
 var (
@@ -31,6 +38,9 @@ var (
 )
 
 func init() {
+	if err := common.SeedSecurely(); err != nil {
+		log.Fatal("%v", err)
+	}
 	runCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is BitterJohn.json)")
 	runCmd.PersistentFlags().String("log-level", "", "optional values: trace, debug, info, warn or error (default is warn)")
 	runCmd.PersistentFlags().String("log-file", "", "the path of log file")
@@ -41,6 +51,7 @@ func init() {
 
 func Run() {
 	initConfig()
+	var err error
 	var done = make(chan error)
 
 	conf := config.ParamsObj
@@ -57,10 +68,41 @@ func Run() {
 	}
 	go func() {
 		err = s.Listen(conf.John.Listen)
-		done <- err
+		close(done)
+	}()
+	go func() {
+		// check secrecy of lisa at intervals
+		var consecutiveFailure uint32
+		for {
+			select {
+			case <-done:
+				break
+			default:
+			}
+			var cdn string
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			cdn, err = api.TrustedHost(ctx, config.ParamsObj.Lisa.Host, config.ParamsObj.Lisa.ValidateToken)
+			if err != nil {
+				if errors.Is(err, cdnValidator.ErrCanStealIP) {
+					close(done)
+					log.Error("%v: %v", cdn, err)
+				} else if errors.Is(err, cdnValidator.ErrFailedValidate) {
+					atomic.AddUint32(&consecutiveFailure, 1)
+					if consecutiveFailure >= 3 {
+						log.Error("%v: %v", cdn, err)
+						// TODO: unregister and wait for recover
+					}
+				}
+				log.Warn("%v: %v", cdn, err)
+			} else {
+				consecutiveFailure = 0
+			}
+			cancel()
+			time.Sleep(time.Duration(rand.Intn(181)) * time.Second)
+		}
 	}()
 
-	err = <-done
+	<-done
 	if err != nil {
 		log.Fatal("%v", err)
 	}

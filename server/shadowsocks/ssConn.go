@@ -2,7 +2,6 @@ package shadowsocks
 
 import (
 	"crypto/cipher"
-	"crypto/rand"
 	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
+	"math/rand"
 	"net"
 	"sync"
 )

@@ -7,36 +7,32 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
-	"net"
 	"net/http"
 	"net/url"
 	"path"
 )
 
-func Register(endpointHost string, info model.Server) (users []server.Passage, err error) {
-	if hostname, ok := TrustedHost(endpointHost); !ok {
-		cname, _ := net.LookupCNAME(hostname)
-		if _, ok = TrustedHost(cname); !ok {
-			return nil, fmt.Errorf("untrusted host and cname: %v %v", endpointHost, cname)
-		}
+func Register(ctx context.Context, endpointHost string, validateToken string, info model.Server) (cdnNames string, users []server.Passage, err error) {
+	if cdnNames, err = TrustedHost(ctx, endpointHost, validateToken); err != nil {
+		return cdnNames, nil, err
 	}
 	b, err := jsoniter.Marshal(info)
 	if err != nil {
-		return nil, err
+		return cdnNames, nil, err
 	}
 	endpoint := url.URL{
 		Scheme: "https",
 		Host:   endpointHost,
 		Path:   path.Join("api", "ticket", info.Ticket, "register"),
 	}
-	req, err := http.NewRequestWithContext(context.TODO(), "POST", endpoint.String(), bytes.NewReader(b))
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint.String(), bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return cdnNames, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return cdnNames, nil, err
 	}
 
 	defer resp.Body.Close()
@@ -46,10 +42,10 @@ func Register(endpointHost string, info model.Server) (users []server.Passage, e
 		Message string
 	}
 	if err := jsoniter.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		return nil, err
+		return cdnNames, nil, err
 	}
 	if respBody.Code != "SUCCESS" {
-		return nil, fmt.Errorf(respBody.Message)
+		return cdnNames, nil, fmt.Errorf(respBody.Message)
 	}
 	for _, passage := range respBody.Data {
 		users = append(users, server.Passage{
@@ -57,5 +53,5 @@ func Register(endpointHost string, info model.Server) (users []server.Passage, e
 			Manager: false,
 		})
 	}
-	return users, nil
+	return cdnNames, users, nil
 }

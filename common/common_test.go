@@ -27,7 +27,7 @@ func TestBytesAddLittleEndian(t *testing.T) {
 	tt := [][2][]byte{
 		{{0, 0, 0}, {1, 0, 0}},
 		{{255, 0, 0}, {0, 1, 0}},
-		{{255, 255,0}, {0, 0, 1}},
+		{{255, 255, 0}, {0, 0, 1}},
 		{{255, 255, 255}, {0, 0, 0}},
 		{{255, 255, 55}, {0, 0, 56}},
 		{{255, 23, 56}, {0, 24, 56}},
@@ -37,6 +37,24 @@ func TestBytesAddLittleEndian(t *testing.T) {
 		BytesIncLittleEndian(test[0])
 		if !bytes.Equal(test[0], test[1]) {
 			t.Fatal(i, test[0], "!=", test[1])
+		}
+	}
+}
+
+func TestStarMatch(t *testing.T) {
+	tt := [][3]interface{}{
+		{"test.com", "test.com", true},
+		{"test*.com", "test.com", true},
+		{"test*.com", "testcom", false},
+		{"test*.com", "test.example.com", true},
+		{"*test.com", "test.example.com", false},
+		{"*test.com", "1test.com", true},
+		{"t*test.com", "testetest.com", true},
+		{`*`, `test.com`, true},
+	}
+	for _, test := range tt {
+		if StarMatch(test[0].(string), test[1].(string)) != test[2].(bool) {
+			t.Fatal(test)
 		}
 	}
 }

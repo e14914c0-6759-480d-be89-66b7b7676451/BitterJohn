@@ -1,6 +1,7 @@
 package shadowsocks
 
 import (
+	"context"
 	"errors"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
@@ -110,7 +111,9 @@ func (s *Server) register() error {
 			break
 		}
 	}
-	users, err := api.Register(s.sweetLisa.Host, model.Server{
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cdnNames, users, err := api.Register(ctx, s.sweetLisa.Host, s.sweetLisa.ValidateToken, model.Server{
 		Ticket: s.arg.Ticket,
 		Name:   s.arg.Name,
 		Host:   s.arg.Host,
@@ -124,7 +127,11 @@ func (s *Server) register() error {
 	if err != nil {
 		return err
 	}
+<<<<<<< HEAD
 	log.Alert("Succeed to register at %v", strconv.Quote(s.sweetLisa.Host))
+=======
+	log.Alert("Succeed to register for chat %v at %v [%v]", s.chatIdentifier, s.sweetLisa.Host, cdnNames)
+>>>>>>> 01a3480 (feat: validate cdn)
 	s.lastAlive = time.Now()
 	// sweetLisa can replace the manager key here
 	if err := s.SyncPassages(users); err != nil {
