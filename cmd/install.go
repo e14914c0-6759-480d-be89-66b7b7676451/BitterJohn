@@ -119,7 +119,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 			return nil, false, nil
 		}
 	}
-	prompt := promptui.Prompt{
+	prompt := &promptui.Prompt{
 		Label:    "The host of SweetLisa",
 		Validate: hostValidator,
 		Default:  "sweetlisa.tuta.cc",
@@ -133,7 +133,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if len(t) > 0 {
 		validateToken = t[0]
 	}
-	prompt = promptui.Prompt{
+	prompt = &promptui.Prompt{
 		Label:    "The CDN token to validate whether SweetLisa can know user's IP",
 		Default:  validateToken,
 		Validate: minLengthValidatorFactory(5),
@@ -143,7 +143,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		return nil, false, err
 	}
 
-	prompt = promptui.Prompt{
+	prompt = &promptui.Prompt{
 		Label:    "Server Ticket",
 		Validate: minLengthValidatorFactory(15),
 	}
@@ -152,7 +152,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		return nil, false, err
 	}
 
-	prompt = promptui.Prompt{
+	prompt = &promptui.Prompt{
 		Label:     "Address to listen on",
 		Default:   "0.0.0.0:" + strconv.Itoa(1024+rand.Intn(30000)),
 		AllowEdit: true,
@@ -175,7 +175,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 			hostname = string(b)
 		}
 	}
-	prompt = promptui.Prompt{
+	prompt = &promptui.Prompt{
 		Label:    "Server hostname for users to connect",
 		Default:  hostname,
 		Validate: hostValidator,
@@ -185,7 +185,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		return nil, false, err
 	}
 
-	prompt = promptui.Prompt{
+	prompt = &promptui.Prompt{
 		Label:     "Server port for users to connect",
 		Default:   listenPort,
 		Validate:  portValidator,
@@ -197,7 +197,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	}
 	port, _ := strconv.Atoi(strPort)
 
-	prompt = promptui.Prompt{
+	prompt = &promptui.Prompt{
 		Label:    "Server name to register",
 		Validate: minLengthValidatorFactory(5),
 	}
