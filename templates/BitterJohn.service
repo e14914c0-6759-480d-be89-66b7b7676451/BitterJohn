@@ -18,7 +18,8 @@ NoNewPrivileges=true
 # spawning /home/<username>/bin/BitterJohn: Operation not
 # permitted")
 {{end}}
-Restart=always
+Restart=on-failure
+RestartSec=5s
 LimitNOFILE=102400
 Environment="GODEBUG=madvdontneed=1"
 ExecStart={{.Bin}} run --log-disable-timestamp{{range .Args}} {{.}}{{end}}

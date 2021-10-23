@@ -1,7 +1,10 @@
 package common
 
 import (
+	"os/user"
+	"path/filepath"
 	"reflect"
+	"strings"
 )
 
 const Alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
@@ -78,4 +81,16 @@ func MustMapKeys(m interface{}) (keys []string) {
 		keys = append(keys, k.String())
 	}
 	return keys
+}
+
+func HomeExpand(path string) (string, error) {
+	if !strings.HasPrefix(path, "~") {
+		return path, nil
+	}
+
+	usr, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(usr.HomeDir, path[1:]), nil
 }

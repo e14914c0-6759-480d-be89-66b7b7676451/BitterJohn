@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viperTool"
@@ -109,5 +110,9 @@ func initLog() {
 	if config.ParamsObj.John.Log.File != "" {
 		logWay = "file"
 	}
-	log.InitLog(logWay, config.ParamsObj.John.Log.File, config.ParamsObj.John.Log.Level, config.ParamsObj.John.Log.MaxDays, config.ParamsObj.John.Log.DisableColor, config.ParamsObj.John.Log.DisableTimestamp)
+	file, err := common.HomeExpand(config.ParamsObj.John.Log.File)
+	if err != nil {
+		log.Fatal("%v", err)
+	}
+	log.InitLog(logWay, file, config.ParamsObj.John.Log.Level, config.ParamsObj.John.Log.MaxDays, config.ParamsObj.John.Log.DisableColor, config.ParamsObj.John.Log.DisableTimestamp)
 }
