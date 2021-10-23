@@ -13,8 +13,10 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
+	"io"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -120,17 +122,23 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	prompt := promptui.Prompt{
 		Label:    "The host of SweetLisa",
 		Validate: hostValidator,
+		Default:  "sweetlisa.tuta.cc",
 	}
 	sweetLisaHost, err := prompt.Run()
 	if err != nil {
 		return nil, false, err
 	}
-	//
+	t, _ := net.LookupTXT("cdn-validate." + sweetLisaHost)
+	var validateToken string
+	if len(t) > 0 {
+		validateToken = t[0]
+	}
 	prompt = promptui.Prompt{
 		Label:    "The CDN token to validate whether SweetLisa can know user's IP",
+		Default:  validateToken,
 		Validate: minLengthValidatorFactory(5),
 	}
-	validateToken, err := prompt.Run()
+	validateToken, err = prompt.Run()
 	if err != nil {
 		return nil, false, err
 	}
@@ -158,12 +166,21 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-
+	var hostname string
+	resp, err := http.Get("https://ipv4.appspot.com/")
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode == 200 {
+			b, _ := io.ReadAll(resp.Body)
+			hostname = string(b)
+		}
+	}
 	prompt = promptui.Prompt{
 		Label:    "Server hostname for users to connect",
+		Default:  hostname,
 		Validate: hostValidator,
 	}
-	hostname, err := prompt.Run()
+	hostname, err = prompt.Run()
 	if err != nil {
 		return nil, false, err
 	}
