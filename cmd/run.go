@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,7 +82,12 @@ func Run() {
 			}
 			var cdn string
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			cdn, err = api.TrustedHost(ctx, config.ParamsObj.Lisa.Host, config.ParamsObj.Lisa.ValidateToken)
+			t, _ := net.LookupTXT("cdn-validate." + config.ParamsObj.Lisa.Host)
+			var validateToken string
+			if len(t) > 0 {
+				validateToken = t[0]
+			}
+			cdn, err = api.TrustedHost(ctx, config.ParamsObj.Lisa.Host, validateToken)
 			if err != nil {
 				if errors.Is(err, cdnValidator.ErrCanStealIP) {
 					close(done)

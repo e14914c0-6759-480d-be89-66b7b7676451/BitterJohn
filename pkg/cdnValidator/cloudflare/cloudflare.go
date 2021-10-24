@@ -6,7 +6,9 @@ import (
 	"github.com/cloudflare/cloudflare-go"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdnValidator"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"strings"
+	"time"
 )
 
 var CIDRs = []string{
@@ -44,6 +46,15 @@ func New(token string) (cdnValidator.CDNValidator, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(context.TODO(), 15*time.Second)
+	defer cancel()
+	v, err := api.VerifyAPIToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if v.Status != "active" {
+		return nil, fmt.Errorf("invalid token")
+	}
 	return &Cloudflare{api: api}, nil
 }
 
@@ -51,12 +62,41 @@ type Cloudflare struct {
 	api *cloudflare.API
 }
 
-func validRule(r cloudflare.FirewallRule, hostname string) bool {
-	return r.Paused == false &&
-		r.Action == "block" &&
-		r.Filter.Paused == false &&
-		(r.Filter.Expression == fmt.Sprintf(`(ip.geoip.country eq "CN" and http.host eq "%v")`, hostname) ||
-			r.Filter.Expression == fmt.Sprintf(`(http.host eq "%v" and ip.geoip.country eq "CN")`, hostname))
+func ValidPageRule(pageRule cloudflare.PageRule, hostname string) bool {
+	if pageRule.Status == "active" &&
+		len(pageRule.Targets) == 1 &&
+		pageRule.Targets[0].Target == "url" &&
+		pageRule.Targets[0].Constraint.Operator == "matches" &&
+		strings.ReplaceAll(pageRule.Targets[0].Constraint.Value, `\/`, "/") == hostname+`/block-cn` &&
+		len(pageRule.Actions) == 1 &&
+		pageRule.Actions[0].ID == "forwarding_url" {
+		m, ok := pageRule.Actions[0].Value.(map[string]interface{})
+		if !ok {
+			log.Warn("pageRule.Actions[0].Value is not map")
+			return false
+		}
+		u, ok := m["url"].(string)
+		if !ok {
+			log.Warn("pageRule.Actions[0].Value[url] is not string")
+			return false
+		}
+		u = strings.ReplaceAll(u, `\/`, "/")
+		return u == "https://e14914c0-6759-480d-be89-66b7b7676451.github.io/blocked-page/cn.txt"
+	}
+	return false
+}
+
+func ValidTransformRuleset(ruleset cloudflare.Ruleset, hostname string) bool {
+	for _, r := range ruleset.Rules {
+		if r.Enabled == true &&
+			r.Action == "rewrite" &&
+			r.ActionParameters.URI.Path.Value == "/block-cn" &&
+			r.ActionParameters.URI.Query.Value == "" &&
+			r.Expression == fmt.Sprintf("(ip.geoip.country eq \"CN\" and http.user_agent ne \"BitterJohn\" and http.host eq \"%v\")", hostname) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Cloudflare) Validate(ctx context.Context, domain string) (bool, error) {
@@ -70,10 +110,40 @@ func (c *Cloudflare) Validate(ctx context.Context, domain string) (bool, error) 
 		return false, err
 	}
 	rules, err := c.api.FirewallRules(ctx, zoneID, cloudflare.PaginationOptions{})
-	for _, rule := range rules {
-		if validRule(rule, domain) {
-			return true, nil
+	if len(rules) > 0 {
+		return false, fmt.Errorf("sweetlisa's cloudflare firewall has rules, which can leave records of the visit")
+	}
+	var ok bool
+	rulesets, err := c.api.ListZoneRulesets(ctx, zoneID)
+	if err != nil {
+		return false, err
+	}
+	for _, ruleset := range rulesets {
+		if ruleset.Phase != "http_request_transform" {
+			continue
+		}
+		ruleset, err := c.api.GetZoneRuleset(ctx, zoneID, ruleset.ID)
+		if err != nil {
+			continue
+		}
+		if ValidTransformRuleset(ruleset, domain) {
+			ok = true
+			break
 		}
 	}
-	return false, err
+	if !ok {
+		return false, nil
+	}
+	ok = false
+	pageRules, err := c.api.ListPageRules(ctx, zoneID)
+	if err != nil {
+		return false, err
+	}
+	for _, pageRule := range pageRules {
+		if ValidPageRule(pageRule, domain) {
+			ok = true
+			break
+		}
+	}
+	return ok, nil
 }

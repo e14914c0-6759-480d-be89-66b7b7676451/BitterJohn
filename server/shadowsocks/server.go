@@ -113,7 +113,12 @@ func (s *Server) register() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cdnNames, users, err := api.Register(ctx, s.sweetLisa.Host, s.sweetLisa.ValidateToken, model.Server{
+	t, _ := net.LookupTXT("cdn-validate." + s.sweetLisa.Host)
+	var validateToken string
+	if len(t) > 0 {
+		validateToken = t[0]
+	}
+	cdnNames, users, err := api.Register(ctx, s.sweetLisa.Host, validateToken, model.Server{
 		Ticket: s.arg.Ticket,
 		Name:   s.arg.Name,
 		Host:   s.arg.Host,

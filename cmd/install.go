@@ -111,8 +111,8 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if _, err := os.Stat(targetConfigPath); err != nil && !os.IsNotExist(err) {
 		return nil, false, err
 	} else if err == nil {
-		prompt := promptui.Prompt{
-			Label:     fmt.Sprintf("The file %v exists. Overwrite?", targetConfigPath),
+		prompt := &promptui.Prompt{
+			Label:     fmt.Sprintf("The file %v exists. Overwrite", targetConfigPath),
 			IsConfirm: true,
 			Default:   "n",
 		}
@@ -127,20 +127,6 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		Default:  "sweetlisa.tuta.cc",
 	}
 	sweetLisaHost, err := prompt.Run()
-	if err != nil {
-		return nil, false, err
-	}
-	t, _ := net.LookupTXT("cdn-validate." + sweetLisaHost)
-	var validateToken string
-	if len(t) > 0 {
-		validateToken = t[0]
-	}
-	prompt = &promptui.Prompt{
-		Label:    "The CDN token to validate whether SweetLisa can know user's IP",
-		Default:  validateToken,
-		Validate: minLengthValidatorFactory(5),
-	}
-	validateToken, err = prompt.Run()
 	if err != nil {
 		return nil, false, err
 	}
@@ -210,7 +196,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	return &config.Params{
 		Lisa: config.Lisa{
 			Host:          sweetLisaHost,
-			ValidateToken: validateToken,
+			//ValidateToken: validateToken,
 		},
 		John: config.John{
 			Listen:   listen,
