@@ -59,13 +59,17 @@ func Validate(ctx context.Context, domain string, token string) (cdnName string,
 		return "", err
 	}
 	// may be served behind multiple CDNs
-	var mName = make(map[string]struct{})
+	var cdnNames []string
 	for _, ip := range ips {
 		name, creator := CreatorByIP(ip)
 		if creator == nil {
 			return name, fmt.Errorf("%w: %v", ErrNotFound, ip.String())
 		}
-		cdn, err := creator(token)
+		cdnNames = append(cdnNames, name)
+	}
+	cdnNames = common.Deduplicate(cdnNames)
+	for _,name:=range cdnNames{
+		cdn, err := validatorMapping[name](token)
 		if err != nil {
 			return name, err
 		}
@@ -76,7 +80,6 @@ func Validate(ctx context.Context, domain string, token string) (cdnName string,
 		if !ok {
 			return name, ErrCanStealIP
 		}
-		mName[name] = struct{}{}
 	}
-	return strings.Join(common.MustMapKeys(mName), ", "), nil
+	return strings.Join(cdnNames, ", "), nil
 }

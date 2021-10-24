@@ -89,6 +89,19 @@ func MustMapKeys(m interface{}) (keys []string) {
 	return keys
 }
 
+func Deduplicate(list []string) []string {
+	res := make([]string, 0, len(list))
+	m := make(map[string]struct{})
+	for _, v := range list {
+		if _, ok := m[v]; ok {
+			continue
+		}
+		m[v] = struct{}{}
+		res = append(res, v)
+	}
+	return res
+}
+
 func HomeExpand(path string) (string, error) {
 	if !strings.HasPrefix(path, "~") {
 		return path, nil
