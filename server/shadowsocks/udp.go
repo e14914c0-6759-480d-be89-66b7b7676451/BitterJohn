@@ -6,6 +6,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"golang.org/x/net/dns/dnsmessage"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -20,12 +21,14 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 	// get conn or dial and relay
 	rc, passage, plainText, err := s.GetOrBuildUCPConn(lAddr, data[:n])
 	if err != nil {
-		if err == ErrFailAuth {
-			return nil
-		}
-		return fmt.Errorf("dial target error: %w", err)
+		return fmt.Errorf("auth fail from: %v: %w", lAddr.String(), err)
 	}
 	defer pool.Put(plainText)
+
+	// detect passage contention
+	if err := s.ContentionCheck(lAddr.(*net.UDPAddr).IP, passage); err != nil {
+		return err
+	}
 
 	size, _ := BytesSizeForMetadata(plainText)
 	if passage.Out == nil {
@@ -84,9 +87,9 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		}
 	}()
 	// auth every key
-	passage, plainText = s.authUDP(buf, data, userContext)
-	if passage == nil {
-		return nil, nil, nil, ErrFailAuth
+	passage, plainText, err = s.authUDP(buf, data, userContext)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	var target string
 	targetMetadata, err := NewMetadata(plainText)
@@ -203,13 +206,21 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 	}
 }
 
-func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (hit *Passage, content []byte) {
+func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (passage *Passage, content []byte, err error) {
 	if len(data) < BasicLen {
-		return nil, nil
+		return nil, nil, io.ErrUnexpectedEOF
 	}
-	return userContext.Auth(func(passage Passage) ([]byte, bool) {
+	passage, content = userContext.Auth(func(passage Passage) ([]byte, bool) {
 		return probeUDP(buf, data, passage)
 	})
+	if passage == nil {
+		return nil, nil, ErrFailAuth
+	}
+	// check bloom
+	if exist := s.bloom.ExistOrAdd(data[:CiphersConf[passage.In.Method].SaltLen]); exist {
+		return nil, nil, ErrReplayAttack
+	}
+	return passage, content, nil
 }
 
 func probeUDP(buf []byte, data []byte, server Passage) (content []byte, ok bool) {

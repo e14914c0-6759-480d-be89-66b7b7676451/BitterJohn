@@ -3,7 +3,7 @@ package shadowsocks
 import (
 	"bytes"
 	"fmt"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferredConn"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	io2 "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/zeroalloc/io"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
@@ -22,7 +22,10 @@ const (
 	TCPBufferSize = 32 * 1024
 )
 
-var ErrPassageAbuse = fmt.Errorf("passage abuse")
+var (
+	ErrPassageAbuse = fmt.Errorf("passage abuse")
+	ErrReplayAttack = fmt.Errorf("replay attack")
+)
 
 func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage) error {
 	if !passage.Manager {
@@ -105,26 +108,20 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 }
 
 func (s *Server) handleTCP(conn net.Conn) error {
-	bConn := bufferredConn.NewBufferedConnSize(conn, TCPBufferSize)
-	passage, _ := s.authTCP(bConn)
-	if passage == nil {
+	bConn := bufferred_conn.NewBufferedConnSize(conn, TCPBufferSize)
+	passage, err := s.authTCP(bConn)
+	if err != nil {
 		// Auth fail. Drain the conn
-		log.Info("Auth fail. Drain the conn from: %v", conn.RemoteAddr().String())
-		_, err := io.Copy(io.Discard, conn)
+		io.Copy(io.Discard, bConn)
 		bConn.Close()
-		return err
+		return fmt.Errorf("auth fail: %w. Drained the conn from: %v", err, conn.RemoteAddr().String())
 	}
 
 	// detect passage contention
-	contentionDuration := server.ProtectTime[passage.Use()]
-	if contentionDuration > 0 {
-		thisIP := conn.RemoteAddr().(*net.TCPAddr).IP
-		passageKey := passage.In.Argument.Hash()
-		accept, conflictIP := s.passageContentionCache.Check(passageKey, contentionDuration, thisIP)
-		if !accept {
-			bConn.Close()
-			return fmt.Errorf("%w: from %v and %v: contention detected", ErrPassageAbuse, thisIP.String(), conflictIP.String())
-		}
+	if err := s.ContentionCheck(conn.RemoteAddr().(*net.TCPAddr).IP, passage); err != nil {
+		io.Copy(io.Discard, bConn)
+		bConn.Close()
+		return err
 	}
 
 	// handle connection
@@ -207,17 +204,25 @@ func relayTCP(lConn, rConn net.Conn) (err error) {
 	return <-eCh
 }
 
-func (s *Server) authTCP(conn bufferredConn.BufferedConn) (passage *Passage, err error) {
+func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, err error) {
 	var buf = pool.Get(BasicLen)
 	defer pool.Put(buf)
 	data, err := conn.Peek(BasicLen)
 	if err != nil {
 		return nil, io.ErrUnexpectedEOF
 	}
+	// find passage
 	ctx := s.GetUserContextOrInsert(conn.RemoteAddr().(*net.TCPAddr).IP.String())
 	passage, _ = ctx.Auth(func(passage Passage) ([]byte, bool) {
 		return s.probeTCP(buf, data, passage)
 	})
+	if passage == nil {
+		return nil, nil
+	}
+	// check bloom
+	if exist := s.bloom.ExistOrAdd(data[:CiphersConf[passage.In.Method].SaltLen]); exist {
+		return nil, ErrReplayAttack
+	}
 	return passage, nil
 }
 

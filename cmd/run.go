@@ -6,9 +6,10 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdnValidator"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdn_validator"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/disk_bloom"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viperTool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -19,6 +20,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+)
+
+const (
+	DiskBloomSalt = "BitterJohn"
 )
 
 var (
@@ -57,13 +62,19 @@ func Run() {
 
 	conf := config.ParamsObj
 
+	bloom, err := disk_bloom.NewBloom(filepath.Join(filepath.Dir(v.ConfigFileUsed()), "disk_bloom_*"), []byte(DiskBloomSalt))
+	if err != nil {
+		log.Fatal("%v", err)
+	}
+
 	// listen
-	s, err := server.NewServer("shadowsocks", conf.Lisa, server.Argument{
-		Ticket: conf.John.Ticket,
-		Name:   conf.John.Name,
-		Host:   conf.John.Hostname,
-		Port:   conf.John.Port,
-	})
+	s, err := server.NewServer(context.WithValue(context.Background(), "bloom", bloom),
+		"shadowsocks", conf.Lisa, server.Argument{
+			Ticket: conf.John.Ticket,
+			Name:   conf.John.Name,
+			Host:   conf.John.Hostname,
+			Port:   conf.John.Port,
+		})
 	if err != nil {
 		log.Fatal("%v", err)
 	}
@@ -89,10 +100,10 @@ func Run() {
 			}
 			cdn, err = api.TrustedHost(ctx, config.ParamsObj.Lisa.Host, validateToken)
 			if err != nil {
-				if errors.Is(err, cdnValidator.ErrCanStealIP) {
+				if errors.Is(err, cdn_validator.ErrCanStealIP) {
 					close(done)
 					log.Error("%v: %v", cdn, err)
-				} else if errors.Is(err, cdnValidator.ErrFailedValidate) {
+				} else if errors.Is(err, cdn_validator.ErrFailedValidate) {
 					atomic.AddUint32(&consecutiveFailure, 1)
 					if consecutiveFailure >= 3 {
 						log.Error("%v: %v", cdn, err)
@@ -142,7 +153,7 @@ func initConfig() {
 	// https://github.com/spf13/viper/issues/188
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
-	if err := viperTool.NewEnvBinder(v).Bind(config.ParamsObj); err != nil {
+	if err := viper_tool.NewEnvBinder(v).Bind(config.ParamsObj); err != nil {
 		log.Fatal("Fatal error loading config: %s", err)
 	}
 	if err := v.Unmarshal(&config.ParamsObj); err != nil {

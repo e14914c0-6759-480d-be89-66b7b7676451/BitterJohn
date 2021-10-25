@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	gonanoid "github.com/matoous/go-nanoid"
+	disk_bloom "github.com/mzz2017/disk-bloom"
 	"net"
 	"strconv"
 	"sync"
@@ -41,6 +43,8 @@ type Server struct {
 	nm              *UDPConnMapping
 	// passageContentionCache log the last client IP of passages
 	passageContentionCache *server.ContentionCache
+
+	bloom *disk_bloom.FilterGroup
 }
 
 type Passage struct {
@@ -59,7 +63,8 @@ func (p *Passage) Use() (use server.PassageUse) {
 	}
 }
 
-func New(sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+func New(valueCtx context.Context, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+	bloom := valueCtx.Value("bloom").(*disk_bloom.FilterGroup)
 	s := Server{
 		userContextPool:        (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
 		nm:                     NewUDPConnMapping(),
@@ -67,6 +72,7 @@ func New(sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) 
 		closed:                 make(chan struct{}),
 		arg:                    arg,
 		passageContentionCache: server.NewContentionCache(),
+		bloom:                  bloom,
 	}
 	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
 		return nil, err
@@ -167,7 +173,8 @@ func (s *Server) ListenTCP(addr string) (err error) {
 		go func() {
 			err := s.handleTCP(conn)
 			if err != nil {
-				if errors.Is(err, ErrPassageAbuse) {
+				if errors.Is(err, ErrPassageAbuse) ||
+					errors.Is(err, ErrReplayAttack) {
 					log.Warn("handleTCP: %v", err)
 				} else {
 					log.Info("handleTCP: %v", err)
@@ -345,4 +352,16 @@ func (s *Server) removePassagesFunc(f func(passage Passage) (remove bool)) {
 		}
 		userContext.DestroyListCopy(listCopy)
 	}
+}
+
+func (s *Server) ContentionCheck(thisIP net.IP, passage *Passage) (err error) {
+	contentionDuration := server.ProtectTime[passage.Use()]
+	if contentionDuration > 0 {
+		passageKey := passage.In.Argument.Hash()
+		accept, conflictIP := s.passageContentionCache.Check(passageKey, contentionDuration, thisIP)
+		if !accept {
+			return fmt.Errorf("%w: from %v and %v: contention detected", ErrPassageAbuse, thisIP.String(), conflictIP.String())
+		}
+	}
+	return nil
 }

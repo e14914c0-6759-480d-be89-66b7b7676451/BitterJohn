@@ -1,4 +1,4 @@
-package viperTool
+package viper_tool
 
 import (
 	"bytes"

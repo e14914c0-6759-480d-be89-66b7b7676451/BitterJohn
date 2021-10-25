@@ -10,6 +10,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.8.0
 	github.com/matoous/go-nanoid v1.5.0
+	github.com/mzz2017/disk-bloom v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0

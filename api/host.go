@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdnValidator"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdn_validator"
 	"net"
 	"strings"
 )
@@ -16,5 +16,5 @@ func TrustedHost(ctx context.Context, host string, validateToken string) (cdnNam
 			return "", err
 		}
 	}
-	return cdnValidator.Validate(ctx, host, validateToken)
+	return cdn_validator.Validate(ctx, host, validateToken)
 }

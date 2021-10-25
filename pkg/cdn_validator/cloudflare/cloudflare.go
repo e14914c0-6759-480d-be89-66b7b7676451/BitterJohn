@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/cloudflare/cloudflare-go"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdnValidator"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdn_validator"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	path2 "path"
 	"strings"
@@ -39,10 +39,10 @@ var CIDRs = []string{
 
 func init() {
 	nets, _ := common.ToIPNets(CIDRs)
-	cdnValidator.Register("cloudflare", New, nets)
+	cdn_validator.Register("cloudflare", New, nets)
 }
 
-func New(token string) (cdnValidator.CDNValidator, error) {
+func New(token string) (cdn_validator.CDNValidator, error) {
 	api, err := cloudflare.NewWithAPIToken(token)
 	if err != nil {
 		return nil, err

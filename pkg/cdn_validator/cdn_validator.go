@@ -1,4 +1,4 @@
-package cdnValidator
+package cdn_validator
 
 import (
 	"context"

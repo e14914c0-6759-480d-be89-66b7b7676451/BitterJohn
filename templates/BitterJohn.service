@@ -7,10 +7,7 @@ Wants=network.target nss-lookup.target
 [Service]
 Type=simple
 {{if not .ForUser}}
-User=nobody
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-NoNewPrivileges=true
+User=root
 {{else}}
 # Note that "CapabilityBoundingSet=CAP_NET_BIND_SERVICE" is
 # missing in the user unit because systemd 232 is unable to

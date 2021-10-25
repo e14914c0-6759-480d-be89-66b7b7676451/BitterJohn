@@ -1,4 +1,4 @@
-package bufferredConn
+package bufferred_conn
 
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/zeroalloc/bufio"
