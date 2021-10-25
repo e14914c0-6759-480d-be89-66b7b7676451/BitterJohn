@@ -6,7 +6,7 @@ import (
 )
 
 func SyncPassages(s Server, passages []Passage) (err error) {
-	log.Trace("SyncPassages: %v", passages)
+	log.Trace("SyncPassages")
 	toRemove, toAdd := common.Change(s.Passages(), passages, func(x interface{}) string {
 		return x.(Passage).In.Argument.Hash()
 	})

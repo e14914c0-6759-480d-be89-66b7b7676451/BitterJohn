@@ -271,7 +271,7 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 }
 
 func (s *Server) AddPassages(passages []server.Passage) (err error) {
-	log.Trace("AddPassages: %v", passages)
+	log.Trace("AddPassages: %v", len(passages))
 	us, managerKey := LocalizePassages(passages)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -287,7 +287,7 @@ func (s *Server) AddPassages(passages []server.Passage) (err error) {
 }
 
 func (s *Server) RemovePassages(passages []server.Passage, alsoManager bool) (err error) {
-	log.Trace("RemovePassages: %v, alsoManager: %v", passages, alsoManager)
+	log.Trace("RemovePassages: %v, alsoManager: %v", len(passages), alsoManager)
 	psgs, _ := LocalizePassages(passages)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

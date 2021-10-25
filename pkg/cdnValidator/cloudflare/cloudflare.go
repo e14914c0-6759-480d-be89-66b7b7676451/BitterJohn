@@ -164,10 +164,8 @@ func (c *Cloudflare) Validate(ctx context.Context, domain string) (bool, error) 
 	for _, pageRule := range pageRules {
 		if ValidPageRule(pageRule, domain, "block-cn") {
 			okk[0] = true
-			break
 		} else if ValidPageRule(pageRule, domain, "block-cn-html") {
 			okk[1] = true
-			break
 		}
 	}
 	return okk[0] && okk[1], nil
