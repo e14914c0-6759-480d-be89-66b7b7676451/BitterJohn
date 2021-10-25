@@ -7,6 +7,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdnValidator"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	path2 "path"
 	"strings"
 	"time"
 )
@@ -62,12 +63,12 @@ type Cloudflare struct {
 	api *cloudflare.API
 }
 
-func ValidPageRule(pageRule cloudflare.PageRule, hostname string) bool {
+func ValidPageRule(pageRule cloudflare.PageRule, hostname string, path string) bool {
 	if pageRule.Status == "active" &&
 		len(pageRule.Targets) == 1 &&
 		pageRule.Targets[0].Target == "url" &&
 		pageRule.Targets[0].Constraint.Operator == "matches" &&
-		strings.ReplaceAll(pageRule.Targets[0].Constraint.Value, `\/`, "/") == hostname+`/block-cn` &&
+		strings.ReplaceAll(pageRule.Targets[0].Constraint.Value, `\/`, "/") == path2.Join(hostname, path) &&
 		len(pageRule.Actions) == 1 &&
 		pageRule.Actions[0].ID == "forwarding_url" {
 		m, ok := pageRule.Actions[0].Value.(map[string]interface{})
@@ -81,20 +82,41 @@ func ValidPageRule(pageRule cloudflare.PageRule, hostname string) bool {
 			return false
 		}
 		u = strings.ReplaceAll(u, `\/`, "/")
-		return u == "https://e14914c0-6759-480d-be89-66b7b7676451.github.io/blocked-page/cn.txt"
+		return strings.HasPrefix(u, "https://e14914c0-6759-480d-be89-66b7b7676451.github.io/")
+	}
+	return false
+}
+
+func validApiRule(r cloudflare.RulesetRule, hostname string) bool {
+	if r.Enabled == true &&
+		r.Action == "rewrite" &&
+		r.ActionParameters.URI.Path.Value == "/block-cn" &&
+		r.ActionParameters.URI.Query.Value == "" &&
+		r.Expression == fmt.Sprintf("(ip.geoip.country eq \"CN\" and http.user_agent ne \"BitterJohn\" and http.host eq \"%v\")", hostname) {
+		return true
+	}
+	return false
+}
+
+func validHtmlRule(r cloudflare.RulesetRule, hostname string) bool {
+	if r.Enabled == true &&
+		r.Action == "rewrite" &&
+		r.ActionParameters.URI.Path.Value == "/block-cn-html" &&
+		r.ActionParameters.URI.Query.Value == "" &&
+		r.Expression == fmt.Sprintf("(ip.geoip.country eq \"CN\" and http.user_agent ne \"BitterJohn\" and http.host eq \"%v\" and not http.request.uri.path contains \"/api/\")", hostname) {
+		return true
 	}
 	return false
 }
 
 func ValidTransformRuleset(ruleset cloudflare.Ruleset, hostname string) bool {
-	for _, r := range ruleset.Rules {
-		if r.Enabled == true &&
-			r.Action == "rewrite" &&
-			r.ActionParameters.URI.Path.Value == "/block-cn" &&
-			r.ActionParameters.URI.Query.Value == "" &&
-			r.Expression == fmt.Sprintf("(ip.geoip.country eq \"CN\" and http.user_agent ne \"BitterJohn\" and http.host eq \"%v\")", hostname) {
-			return true
-		}
+	if len(ruleset.Rules) != 2 {
+		// should be only 2 transform rules
+		return false
+	}
+	if (validApiRule(ruleset.Rules[0], hostname) && validHtmlRule(ruleset.Rules[1], hostname)) ||
+		(validApiRule(ruleset.Rules[1], hostname) && validHtmlRule(ruleset.Rules[0], hostname)) {
+		return true
 	}
 	return false
 }
@@ -134,16 +156,19 @@ func (c *Cloudflare) Validate(ctx context.Context, domain string) (bool, error) 
 	if !ok {
 		return false, nil
 	}
-	ok = false
+	var okk = [2]bool{false, false}
 	pageRules, err := c.api.ListPageRules(ctx, zoneID)
 	if err != nil {
 		return false, err
 	}
 	for _, pageRule := range pageRules {
-		if ValidPageRule(pageRule, domain) {
-			ok = true
+		if ValidPageRule(pageRule, domain, "block-cn") {
+			okk[0] = true
+			break
+		} else if ValidPageRule(pageRule, domain, "block-cn-html") {
+			okk[1] = true
 			break
 		}
 	}
-	return ok, nil
+	return okk[0] && okk[1], nil
 }

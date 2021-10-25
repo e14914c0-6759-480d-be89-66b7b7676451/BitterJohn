@@ -81,7 +81,7 @@ func New(sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) 
 }
 
 func (s *Server) registerBackground() {
-	const interval = 10 * time.Second
+	var interval = 2 * time.Second
 	ticker := time.NewTicker(interval)
 	for {
 		select {
@@ -96,6 +96,14 @@ func (s *Server) registerBackground() {
 			}
 			if err := s.register(); err != nil {
 				log.Warn("registerBackground: %v", err)
+				// binary exponential backoff algorithm
+				// to avoid DDoS
+				interval = interval * 2
+				if interval > 600*time.Second {
+					interval = 600 * time.Second
+				}
+			} else {
+				interval = 2 * time.Second
 			}
 			ticker.Reset(interval)
 		}
