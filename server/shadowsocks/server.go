@@ -318,7 +318,7 @@ func (s *Server) addPassages(passages []Passage) {
 	s.passages = append(s.passages, passages...)
 
 	var vals []interface{}
-	for _, k := range vals {
+	for _, k := range passages {
 		vals = append(vals, k)
 	}
 	socketIdents := s.userContextPool.Infra().GetKeys()
