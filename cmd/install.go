@@ -195,7 +195,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	}
 	return &config.Params{
 		Lisa: config.Lisa{
-			Host:          sweetLisaHost,
+			Host: sweetLisaHost,
 			//ValidateToken: validateToken,
 		},
 		John: config.John{
@@ -290,6 +290,9 @@ func Install(f embed.FS, forUser bool, genConfig bool) {
 	}
 	if ex != targetBinPath {
 		log.Info("Install %v", targetBinPath)
+		if _, err := os.Stat(targetBinPath); err == nil {
+			_ = os.Remove(targetBinPath)
+		}
 		if err = copyfile.CopyFile(ex, targetBinPath); err != nil {
 			log.Fatal("failed to copy binary: %v", err)
 		}
