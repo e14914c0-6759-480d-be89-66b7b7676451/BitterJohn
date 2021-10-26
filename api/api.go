@@ -22,12 +22,12 @@ func Register(ctx context.Context, endpointHost string, validateToken string, in
 	if err != nil {
 		return cdnNames, nil, err
 	}
-	endpoint := url.URL{
+	u := url.URL{
 		Scheme: "https",
 		Host:   endpointHost,
 		Path:   path.Join("api", "ticket", info.Ticket, "register"),
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint.String(), bytes.NewReader(b))
+	req, err := http.NewRequestWithContext(ctx, "POST", u.String(), bytes.NewReader(b))
 	if err != nil {
 		return cdnNames, nil, err
 	}

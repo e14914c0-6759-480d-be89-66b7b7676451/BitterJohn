@@ -45,6 +45,16 @@ func init() {
 	installCmd.PersistentFlags().BoolP("gen-config", "g", false, "generate config from user input")
 }
 
+func hostsValidator(str string) error {
+	hosts := strings.Split(str, ",")
+	for _, host := range hosts {
+		if err := hostValidator(host); err != nil {
+			return fmt.Errorf("%v: %w", host, err)
+		}
+	}
+	return nil
+}
+
 func hostValidator(str string) error {
 	e := fmt.Errorf("Invalid Host")
 	if net.ParseIP(str) != nil {
@@ -163,9 +173,9 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		}
 	}
 	prompt = &promptui.Prompt{
-		Label:    "Server hostname for users to connect",
+		Label:    "Server hostname for users to connect (split by \",\")",
 		Default:  hostname,
-		Validate: hostValidator,
+		Validate: hostsValidator,
 	}
 	hostname, err = prompt.Run()
 	if err != nil {
@@ -194,7 +204,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	}
 	return &config.Params{
 		Lisa: config.Lisa{
-			Host:          sweetLisaHost,
+			Host: sweetLisaHost,
 			//ValidateToken: validateToken,
 		},
 		John: config.John{
