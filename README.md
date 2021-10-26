@@ -3,9 +3,19 @@ Server and relay side infrastructure for RDA.
 
 ## Usage
 
+### install
+
 ```bash
 sudo ./BitterJohn install -g
 systemctl enable --now BitterJohn
+```
+
+### upgrade
+
+```bash
+sudo ./BitterJohn install
+sudo systemctl daemon-reload
+sudo systemctl restart BitterJohn
 ```
 
 ## Troubleshot
