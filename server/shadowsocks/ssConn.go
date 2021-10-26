@@ -4,8 +4,10 @@ import (
 	"crypto/cipher"
 	"crypto/sha1"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/crypto/hkdf"
@@ -13,7 +15,6 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
-	"math/rand"
 	"net"
 	"sync"
 )
@@ -164,7 +165,7 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 	var offset int
 	c.onceWrite.Do(func() {
 		buf = pool.Get(c.cipherConf.SaltLen + EncryptedPayloadLen(len(b), c.cipherConf.TagLen))
-		_, err = rand.Read(buf[:c.cipherConf.SaltLen])
+		_, err = fastrand.Read(buf[:c.cipherConf.SaltLen])
 		if err != nil {
 			pool.Put(buf)
 			return
@@ -184,6 +185,7 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 		}
 		c.cipherWrite, err = c.cipherConf.NewCipher(subKey)
 		offset += c.cipherConf.SaltLen
+		log.Trace("salt(%p): %v", &b, hex.EncodeToString(buf[:c.cipherConf.SaltLen]))
 	})
 	if buf == nil {
 		buf = pool.Get(EncryptedPayloadLen(len(b), c.cipherConf.TagLen))
@@ -204,6 +206,7 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 		offset += l + c.cipherConf.TagLen
 		common.BytesIncLittleEndian(c.nonceWrite)
 	}
+	log.Trace("to write(%p): %v", &b, hex.EncodeToString(buf[:c.cipherConf.SaltLen]))
 	_, err = c.Conn.Write(buf)
 	if err != nil {
 		return 0, err
@@ -220,7 +223,7 @@ func EncryptUDPFromPool(key Key, b []byte) (shadowBytes []byte, err error) {
 			pool.Put(buf)
 		}
 	}()
-	_, err = rand.Read(buf[:key.CipherConf.SaltLen])
+	_, err = fastrand.Read(buf[:key.CipherConf.SaltLen])
 	if err != nil {
 		return nil, err
 	}

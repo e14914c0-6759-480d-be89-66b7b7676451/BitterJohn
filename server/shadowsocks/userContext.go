@@ -3,7 +3,7 @@ package shadowsocks
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lrulist"
-	"math/rand"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"time"
 )
 
@@ -43,7 +43,7 @@ func (pool *UserContextPool) Infra() *lru.LRU {
 func NewUserContext(passages []Passage) *UserContext {
 	basicInterval := 10 * time.Second
 	offsetRange := 6.0
-	offset := time.Duration((rand.Float64()-0.5)*offsetRange*1000) * time.Millisecond
+	offset := time.Duration((fastrand.Float64()-0.5)*offsetRange*1000) * time.Millisecond
 	var list = make([]interface{}, len(passages))
 	for i, k := range passages {
 		list[i] = k

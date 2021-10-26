@@ -8,12 +8,12 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdn_validator"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/disk_bloom"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -44,9 +44,6 @@ var (
 )
 
 func init() {
-	if err := common.SeedSecurely(); err != nil {
-		log.Fatal("%v", err)
-	}
 	runCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is BitterJohn.json)")
 	runCmd.PersistentFlags().String("log-level", "", "optional values: trace, debug, info, warn or error (default is warn)")
 	runCmd.PersistentFlags().String("log-file", "", "the path of log file")
@@ -115,7 +112,7 @@ func Run() {
 				consecutiveFailure = 0
 			}
 			cancel()
-			time.Sleep(time.Duration(rand.Intn(181)) * time.Second)
+			time.Sleep(time.Duration(fastrand.Intn(181)) * time.Second)
 		}
 	}()
 

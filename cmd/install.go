@@ -8,13 +8,13 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copyfile"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"io"
-	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -107,7 +107,6 @@ func addressValidator(str string) error {
 }
 
 func getParams(targetConfigPath string) (*config.Params, bool, error) {
-	rand.Seed(time.Now().Unix())
 	if _, err := os.Stat(targetConfigPath); err != nil && !os.IsNotExist(err) {
 		return nil, false, err
 	} else if err == nil {
@@ -142,7 +141,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 
 	prompt = &promptui.Prompt{
 		Label:     "Address to listen on",
-		Default:   "0.0.0.0:" + strconv.Itoa(1024+rand.Intn(30000)),
+		Default:   "0.0.0.0:" + strconv.Itoa(1024+fastrand.Intn(30000)),
 		AllowEdit: true,
 		Validate:  addressValidator,
 	}
