@@ -90,8 +90,8 @@ github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211020052956
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c/go.mod h1:ZkjgqJg7FRdqsW+4TY23oSxgQtYgKPToUodILj/4wCQ=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211019113726-5f4cc4dfa31e/go.mod h1:8O6T24gnJ05eaz9nZH07AMpW7CaJTOWNu6AhCYaGMLM=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020023854-3afe293c54f8/go.mod h1:mfceIZ5Jic8pFdkF0G7RE/852AhjycmKVR/P7iwa4fM=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211026115402-6dff4c859f3a h1:khTrjPED9XZ/sKYF9iYop/5bVhSYt/Bsg3wq85XD/W0=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211026115402-6dff4c859f3a/go.mod h1:i7UF/doyMQw/VTUoistuGcvttVhFNROBRRS3NDlt8ZE=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211027084550-74dce3106444 h1:Tx3rcEcMx+fLi2ig4vcSXV/R0HF0cGTuRHORM7tK/aQ=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211027084550-74dce3106444/go.mod h1:i7UF/doyMQw/VTUoistuGcvttVhFNROBRRS3NDlt8ZE=
 github.com/eknkc/basex v1.0.1 h1:TcyAkqh4oJXgV3WYyL4KEfCMk9W8oJCpmx1bo+jVgKY=
 github.com/eknkc/basex v1.0.1/go.mod h1:k/F/exNEHFdbs3ZHuasoP2E7zeWwZblG84Y7Z59vQRo=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=

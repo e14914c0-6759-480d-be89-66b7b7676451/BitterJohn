@@ -135,7 +135,7 @@ func (s *Server) register() error {
 	cdnNames, users, err := api.Register(ctx, s.sweetLisa.Host, validateToken, model.Server{
 		Ticket: s.arg.Ticket,
 		Name:   s.arg.Name,
-		Host:   s.arg.Host,
+		Hosts:  s.arg.Hostnames,
 		Port:   s.arg.Port,
 		Argument: model.Argument{
 			Protocol: "shadowsocks",

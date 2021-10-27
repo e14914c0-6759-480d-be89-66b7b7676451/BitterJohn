@@ -56,7 +56,7 @@ func hostsValidator(str string) error {
 }
 
 func hostValidator(str string) error {
-	e := fmt.Errorf("Invalid Host")
+	e := fmt.Errorf("Invalid Hostnames")
 	if net.ParseIP(str) != nil {
 		return nil
 	} else if !common.HasTopDomain(str) {
@@ -208,11 +208,11 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 			//ValidateToken: validateToken,
 		},
 		John: config.John{
-			Listen:   listen,
-			Name:     name,
-			Hostname: hostname,
-			Port:     port,
-			Ticket:   ticket,
+			Listen:    listen,
+			Name:      name,
+			Hostnames: hostname,
+			Port:      port,
+			Ticket:    ticket,
 		},
 	}, true, nil
 }

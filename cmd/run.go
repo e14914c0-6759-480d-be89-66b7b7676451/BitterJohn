@@ -67,10 +67,10 @@ func Run() {
 	// listen
 	s, err := server.NewServer(context.WithValue(context.Background(), "bloom", bloom),
 		"shadowsocks", conf.Lisa, server.Argument{
-			Ticket: conf.John.Ticket,
-			Name:   conf.John.Name,
-			Host:   conf.John.Hostname,
-			Port:   conf.John.Port,
+			Ticket:    conf.John.Ticket,
+			Name:      conf.John.Name,
+			Hostnames: conf.John.Hostnames,
+			Port:      conf.John.Port,
 		})
 	if err != nil {
 		log.Fatal("%v", err)

@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/cloudflare/cloudflare-go v0.26.0
-	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211026115402-6dff4c859f3a
+	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211027084550-74dce3106444
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.8.0

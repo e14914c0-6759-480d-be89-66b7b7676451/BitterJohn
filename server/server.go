@@ -14,9 +14,9 @@ const LostThreshold = 5 * time.Minute
 type Argument struct {
 	Ticket string
 
-	Name string
-	Host string
-	Port int
+	Name      string
+	Hostnames string
+	Port      int
 }
 
 type Server interface {
