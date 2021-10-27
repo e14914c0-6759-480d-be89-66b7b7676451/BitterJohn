@@ -217,7 +217,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 		return s.probeTCP(buf, data, passage)
 	})
 	if passage == nil {
-		return nil, nil
+		return nil, ErrFailAuth
 	}
 	// check bloom
 	if exist := s.bloom.ExistOrAdd(data[:CiphersConf[passage.In.Method].SaltLen]); exist {
