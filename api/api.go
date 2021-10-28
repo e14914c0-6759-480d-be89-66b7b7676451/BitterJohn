@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
@@ -23,7 +22,6 @@ func Register(ctx context.Context, endpointHost string, validateToken string, in
 	if err != nil {
 		return cdnNames, nil, err
 	}
-	log.Warn("register: %v", string(b))
 	u := url.URL{
 		Scheme: "https",
 		Host:   endpointHost,

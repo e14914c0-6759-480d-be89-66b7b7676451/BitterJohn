@@ -12,7 +12,7 @@ type John struct {
 	Name     string `json:"name" required:"" desc:"Server name to register"`
 	Hostname string `json:"hostname" required:"" desc:"Server hostnames for users to connect (split by \",\")"`
 	Port     int    `json:"port,omitempty" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}" desc:"Server port for users to connect"`
-	Ticket    string `json:"ticket" required:"" desc:"Ticket from SweetLisa"`
+	Ticket   string `json:"ticket" required:"" desc:"Ticket from SweetLisa"`
 }
 
 type Log struct {
