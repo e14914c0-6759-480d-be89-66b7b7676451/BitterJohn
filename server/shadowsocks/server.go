@@ -132,6 +132,10 @@ func (s *Server) register() error {
 	if len(t) > 0 {
 		validateToken = t[0]
 	}
+	bandwidthLimit, err := server.GenerateBandwidthLimit()
+	if err != nil {
+		return err
+	}
 	cdnNames, users, err := api.Register(ctx, s.sweetLisa.Host, validateToken, model.Server{
 		Ticket: s.arg.Ticket,
 		Name:   s.arg.Name,
@@ -142,6 +146,7 @@ func (s *Server) register() error {
 			Password: manager.In.Password,
 			Method:   manager.In.Method,
 		},
+		BandwidthLimit: bandwidthLimit,
 	})
 	if err != nil {
 		return err

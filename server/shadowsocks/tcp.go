@@ -56,12 +56,12 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 		}
 		log.Trace("Received a ping message")
 		s.lastAlive = time.Now()
-		pingResp, err := server.GeneratePingResp()
+		bandwidthLimit, err := server.GenerateBandwidthLimit()
 		if err != nil {
 			log.Warn("generatePingResp: %v", err)
 			return err
 		}
-		bPingResp, err := jsoniter.Marshal(pingResp)
+		bPingResp, err := jsoniter.Marshal(model.PingResp{BandwidthLimit: bandwidthLimit})
 		if err != nil {
 			log.Warn("%v", err)
 			return err

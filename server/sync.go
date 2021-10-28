@@ -24,15 +24,15 @@ func SyncPassages(s Server, passages []Passage) (err error) {
 }
 
 
-func GeneratePingResp() (resp model.PingResp, err error) {
+func GenerateBandwidthLimit() (l model.BandwidthLimit, err error) {
 	now := time.Now()
 	limit := config.ParamsObj.John.BandwidthLimit
 	if !limit.Enable {
-		return model.PingResp{}, nil
+		return model.BandwidthLimit{}, nil
 	}
 	txRxes, err := procfs.InterfacesTxRx()
 	if err != nil {
-		return model.PingResp{}, err
+		return model.BandwidthLimit{}, err
 	}
 	var (
 		maxRxKiB int64
@@ -46,15 +46,13 @@ func GeneratePingResp() (resp model.PingResp, err error) {
 			maxTxKib = txRx.TxBytes / 1024
 		}
 	}
-	var pingResp = model.PingResp{
-		BandwidthLimit: model.BandwidthLimit{
-			ResetDay:         time.Date(now.Year(), now.Month(), int(limit.ResetDay), 0, 0, 0, 0, time.Local),
-			UplinkLimitGiB:   limit.UplinkLimitGiB,
-			DownlinkLimitGiB: limit.DownlinkLimitGiB,
-			TotalLimitGiB:    limit.TotalLimitGiB,
-			UplinkKiB:        maxTxKib,
-			DownlinkKiB:      maxRxKiB,
-		},
+	l = model.BandwidthLimit{
+		ResetDay:         time.Date(now.Year(), now.Month(), int(limit.ResetDay), 0, 0, 0, 0, time.Local),
+		UplinkLimitGiB:   limit.UplinkLimitGiB,
+		DownlinkLimitGiB: limit.DownlinkLimitGiB,
+		TotalLimitGiB:    limit.TotalLimitGiB,
+		UplinkKiB:        maxTxKib,
+		DownlinkKiB:      maxRxKiB,
 	}
-	return pingResp, nil
+	return l, nil
 }
