@@ -18,11 +18,11 @@ type John struct {
 }
 
 type BandwidthLimit struct {
-	Enable           bool
-	ResetDay         uint8  `json:",omitempty" desc:"ResetDay is the day of every month to reset the limit of bandwidth. Zero means never reset."`
-	UplinkLimitGiB   int64 `json:",omitempty" desc:"UplinkLimitGiB is the limit of uplink bandwidth in GiB. Zero means no limit."`
-	DownlinkLimitGiB int64 `json:",omitempty" desc:"DownlinkLimitGiB is the limit of downlink bandwidth in GiB Zero means no limit."`
-	TotalLimitGiB    int64 `json:",omitempty" desc:"TotalLimitGiB is the limit of downlink plus uplink bandwidth in GiB Zero means no limit."`
+	Enable           bool  `json:"enable" default:"false"`
+	ResetDay         uint8 `json:"resetDay,omitempty" desc:"ResetDay is the day of every month to reset the limit of bandwidth. Zero means never reset."`
+	UplinkLimitGiB   int64 `json:"uplinkLimitGiB,omitempty" desc:"UplinkLimitGiB is the limit of uplink bandwidth in GiB. Zero means no limit."`
+	DownlinkLimitGiB int64 `json:"downlinkLimitGiB,omitempty" desc:"DownlinkLimitGiB is the limit of downlink bandwidth in GiB Zero means no limit."`
+	TotalLimitGiB    int64 `json:"totalLimitGiB,omitempty" desc:"TotalLimitGiB is the limit of downlink plus uplink bandwidth in GiB Zero means no limit."`
 }
 
 type Log struct {
