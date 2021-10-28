@@ -1,7 +1,7 @@
 package lrulist
 
 import (
-	"math/bits"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"sync"
 )
 
@@ -12,11 +12,12 @@ type growingPool struct {
 }
 
 func newGrowingPool(size int) *growingPool {
+	poolSize := pool.GetClosestN(size)
 	return &growingPool{
 		pool: &sync.Pool{New: func() interface{} {
-			return make([]*Node, size)
+			return make([]*Node, poolSize)
 		}},
-		size: size,
+		size: poolSize,
 	}
 }
 
@@ -24,7 +25,10 @@ func (p *growingPool) Get(need int) []*Node {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if need > p.size {
-		*p = *newGrowingPool(1 << bits.Len32(uint32(need)))
+		p.size = pool.GetClosestN(need)
+		p.pool = &sync.Pool{New: func() interface{} {
+			return make([]*Node, p.size)
+		}}
 	}
 	return p.pool.Get().([]*Node)[:need]
 }
