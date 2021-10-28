@@ -65,7 +65,6 @@ func Run() {
 	}
 
 	// listen
-	log.Warn("hostnames: %v", conf.John.Hostname)
 	s, err := server.NewServer(context.WithValue(context.Background(), "bloom", bloom),
 		"shadowsocks", conf.Lisa, server.Argument{
 			Ticket:    conf.John.Ticket,

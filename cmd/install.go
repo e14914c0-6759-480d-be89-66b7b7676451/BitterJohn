@@ -46,6 +46,9 @@ func init() {
 }
 
 func hostsValidator(str string) error {
+	if len(str) == 0 {
+		return fmt.Errorf("host length cannot be zero")
+	}
 	hosts := strings.Split(str, ",")
 	for _, host := range hosts {
 		if err := hostValidator(host); err != nil {
