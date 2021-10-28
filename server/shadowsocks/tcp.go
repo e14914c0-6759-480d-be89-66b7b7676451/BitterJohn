@@ -56,15 +56,23 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 		}
 		log.Trace("Received a ping message")
 		s.lastAlive = time.Now()
+		pingResp, err := server.GeneratePingResp()
+		if err != nil {
+			log.Warn("generatePingResp: %v", err)
+			return err
+		}
+		bPingResp, err := jsoniter.Marshal(pingResp)
+		if err != nil {
+			log.Warn("%v", err)
+			return err
+		}
 
-		respMeta.LenMsgBody = 4
+		respMeta.LenMsgBody = uint32(len(bPingResp))
 		bAddr := respMeta.BytesFromPool()
 		defer pool.Put(bAddr)
 		buf.Write(bAddr)
 
-		resp = pool.Get(int(respMeta.LenMsgBody))
-		defer pool.Put(resp)
-		copy(resp, "pong")
+		resp = bPingResp
 	case MetadataCmdSyncPassages:
 		var passages []model.Passage
 		if err := jsoniter.Unmarshal(req, &passages); err != nil {

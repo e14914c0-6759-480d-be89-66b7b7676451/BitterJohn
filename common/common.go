@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -140,4 +141,14 @@ func SeedSecurely() (err error) {
 	}
 	rand.Seed(n.Int64())
 	return nil
+}
+
+func ShouldParseInt64(a string) int64 {
+	i, _ := strconv.ParseInt(a, 10, 64)
+	return i
+}
+
+func ShouldParseUint8(a string) uint8 {
+	i, _ := strconv.ParseUint(a, 10, 8)
+	return uint8(i)
 }

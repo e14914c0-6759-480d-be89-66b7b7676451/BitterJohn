@@ -89,6 +89,44 @@ func portValidator(str string) error {
 	return nil
 }
 
+func dayValidator(str string) error {
+	e := fmt.Errorf("Invalid Day")
+	day, err := strconv.Atoi(str)
+	if err != nil {
+		return e
+	}
+	if day > 31 || day <= 0 {
+		return e
+	}
+	return nil
+}
+
+func uint64Validator(str string) error {
+	e := fmt.Errorf("Invalid Uint64")
+	_, err := strconv.ParseUint(str, 10, 64)
+	if err != nil {
+		return e
+	}
+	return nil
+}
+
+func limitValidator(str string) error {
+	e := fmt.Errorf("Invalid Limit Format")
+	if len(str) == 0 {
+		return e
+	}
+	fields := strings.Split(str, "/")
+	if len(fields) != 3 {
+		return e
+	}
+	for _, f := range fields {
+		if err := uint64Validator(f); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func uuidValidator(str string) error {
 	e := fmt.Errorf("Invalid ChatIdentifier")
 	if _, err := uuid.Parse(str); err != nil {
@@ -205,6 +243,47 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	var (
+		enableBandwidthLimit bool
+		resetDay             uint8
+		uplinkLimitGiB       int64
+		downlinkLimitGiB     int64
+		totalLimitGiB        int64
+	)
+	prompt = &promptui.Prompt{
+		Label:     "Do you want to set bandwidth limit?",
+		IsConfirm: true,
+	}
+	_, err = prompt.Run()
+	if err == nil {
+		enableBandwidthLimit = true
+
+		prompt = &promptui.Prompt{
+			Label:    "The day of every month to reset the limit of bandwidth",
+			Default:  "1",
+			Validate: dayValidator,
+		}
+		strDay, err := prompt.Run()
+		if err != nil {
+			return nil, false, err
+		}
+		resetDay = common.ShouldParseUint8(strDay)
+		prompt = &promptui.Prompt{
+			Label:     "UplinkLimitGiB/DownlinkLimitGiB/TotalLimitGiB (example: 0/0/480, zero means no limit)",
+			Default:   "0/0/0",
+			AllowEdit: true,
+			Validate:  limitValidator,
+		}
+		strLimit, err := prompt.Run()
+		if err != nil {
+			return nil, false, err
+		}
+		fields := strings.Split(strLimit, "/")
+		uplinkLimitGiB = common.ShouldParseInt64(fields[0])
+		downlinkLimitGiB = common.ShouldParseInt64(fields[1])
+		totalLimitGiB = common.ShouldParseInt64(fields[2])
+	}
+
 	return &config.Params{
 		Lisa: config.Lisa{
 			Host: sweetLisaHost,
@@ -216,6 +295,13 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 			Hostname: hostname,
 			Port:     port,
 			Ticket:   ticket,
+			BandwidthLimit: config.BandwidthLimit{
+				Enable:           enableBandwidthLimit,
+				ResetDay:         resetDay,
+				UplinkLimitGiB:   uplinkLimitGiB,
+				DownlinkLimitGiB: downlinkLimitGiB,
+				TotalLimitGiB:    totalLimitGiB,
+			},
 		},
 	}, true, nil
 }

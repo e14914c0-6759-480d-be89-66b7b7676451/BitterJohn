@@ -13,6 +13,16 @@ type John struct {
 	Hostname string `json:"hostname" required:"" desc:"Server hostnames for users to connect (split by \",\")"`
 	Port     int    `json:"port,omitempty" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}" desc:"Server port for users to connect"`
 	Ticket   string `json:"ticket" required:"" desc:"Ticket from SweetLisa"`
+
+	BandwidthLimit BandwidthLimit `json:"bandwidthLimit"`
+}
+
+type BandwidthLimit struct {
+	Enable           bool
+	ResetDay         uint8  `json:",omitempty" desc:"ResetDay is the day of every month to reset the limit of bandwidth. Zero means never reset."`
+	UplinkLimitGiB   int64 `json:",omitempty" desc:"UplinkLimitGiB is the limit of uplink bandwidth in GiB. Zero means no limit."`
+	DownlinkLimitGiB int64 `json:",omitempty" desc:"DownlinkLimitGiB is the limit of downlink bandwidth in GiB Zero means no limit."`
+	TotalLimitGiB    int64 `json:",omitempty" desc:"TotalLimitGiB is the limit of downlink plus uplink bandwidth in GiB Zero means no limit."`
 }
 
 type Log struct {
