@@ -10,7 +10,7 @@ type John struct {
 	Log    Log    `json:"log,omitempty"`
 
 	Name      string `json:"name" required:"" desc:"Server name to register"`
-	Hostnames string `json:"hostname" required:"" desc:"Server hostnames for users to connect (split by \",\")"`
+	Hostnames string `json:"host" required:"" desc:"Server hostnames for users to connect (split by \",\")"`
 	Port      int    `json:"port,omitempty" default:"{{with $arr := split \":\" .john.listen}}{{$arr._1}}{{end}}" desc:"Server port for users to connect"`
 	Ticket    string `json:"ticket" required:"" desc:"Ticket from SweetLisa"`
 }
