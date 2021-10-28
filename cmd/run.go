@@ -65,11 +65,12 @@ func Run() {
 	}
 
 	// listen
+	log.Warn("hostnames: %v", conf.John.Hostname)
 	s, err := server.NewServer(context.WithValue(context.Background(), "bloom", bloom),
 		"shadowsocks", conf.Lisa, server.Argument{
 			Ticket:    conf.John.Ticket,
 			Name:      conf.John.Name,
-			Hostnames: conf.John.Hostnames,
+			Hostnames: conf.John.Hostname,
 			Port:      conf.John.Port,
 		})
 	if err != nil {
