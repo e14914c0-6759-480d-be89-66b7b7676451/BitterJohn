@@ -12,7 +12,7 @@ type growingPool struct {
 }
 
 func newGrowingPool(size int) *growingPool {
-	poolSize := pool.GetClosestN(size)
+	poolSize := 1 << pool.GetClosestN(size)
 	return &growingPool{
 		pool: &sync.Pool{New: func() interface{} {
 			return make([]*Node, poolSize)
@@ -25,7 +25,7 @@ func (p *growingPool) Get(need int) []*Node {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if need > p.size {
-		p.size = pool.GetClosestN(need)
+		p.size = 1 << pool.GetClosestN(need)
 		p.pool = &sync.Pool{New: func() interface{} {
 			return make([]*Node, p.size)
 		}}
