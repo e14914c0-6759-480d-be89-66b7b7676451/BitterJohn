@@ -31,31 +31,26 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte) (err error) {
 	}
 
 	size, _ := BytesSizeForMetadata(plainText)
+	var toWrite []byte
 	if passage.Out == nil {
 		// send packet to target
-		targetAddr, err := net.ResolveUDPAddr("udp", target)
-		if err != nil {
-			return err
-		}
-		if _, err = rc.WriteToUDP(plainText[size:], targetAddr); err != nil {
-			return fmt.Errorf("write error: %w", err)
-		}
+		toWrite = plainText[size:]
 	} else {
 		// send encrypted packet to the next server
-		var toWrite []byte
-		switch passage.Out.Protocol {
-		case model.ProtocolShadowsocks:
-			if toWrite, err = EncryptUDPFromPool(Key{
-				CipherConf: CiphersConf[passage.Out.Method],
-				MasterKey:  passage.outMasterKey,
-			}, plainText); err != nil {
-				return err
-			}
-			defer pool.Put(toWrite)
+		if toWrite, err = EncryptUDPFromPool(Key{
+			CipherConf: CiphersConf[passage.Out.Method],
+			MasterKey:  passage.outMasterKey,
+		}, plainText); err != nil {
+			return err
 		}
-		if _, err = rc.Write(toWrite); err != nil {
-			return fmt.Errorf("write error: %w", err)
-		}
+		defer pool.Put(toWrite)
+	}
+	targetAddr, err := net.ResolveUDPAddr("udp", target)
+	if err != nil {
+		return err
+	}
+	if _, err = rc.WriteToUDP(toWrite, targetAddr); err != nil {
+		return fmt.Errorf("write error: %w", err)
 	}
 	return nil
 }
@@ -127,7 +122,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 		// relay
 		go func() {
-			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *passage, *targetMetadata)
+			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *passage)
 			s.nm.Lock()
 			s.nm.Remove(connIdent)
 			s.nm.Unlock()
@@ -149,17 +144,13 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	return rc, passage, plainText, target, nil
 }
 
-func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, passage Passage, target Metadata) (err error) {
+func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, passage Passage) (err error) {
 	var (
 		n           int
 		shadowBytes []byte
 	)
-	bytesTarget := target.BytesFromPool()
-	targetLen := len(bytesTarget)
-	buf := pool.Get(targetLen + MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
+	buf := pool.Get(BasicLen + MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)
-	copy(buf, bytesTarget)
-	pool.Put(bytesTarget)
 	var inKey, outKey Key
 	inKey = Key{
 		CipherConf: CiphersConf[passage.In.Method],
@@ -177,31 +168,38 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 	var addr net.Addr
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
-		n, addr, err = src.ReadFrom(buf[targetLen:])
+		n, addr, err = src.ReadFrom(buf)
 		if err != nil {
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(DefaultNatTimeout)) // should keep consistent
 		if passage.Out != nil {
-			switch passage.Out.Protocol {
-			case model.ProtocolShadowsocks:
-				plainText, err := DecryptUDP(outKey, buf[targetLen:targetLen+n])
-				if err != nil {
-					log.Warn("relay: DecryptUDP: %v", err)
-					continue
-				}
-				copy(buf[targetLen:], buf[targetLen+targetLen:])
-				n = len(plainText) - targetLen
+			plainText, err := DecryptUDP(outKey, buf[:n])
+			if err != nil {
+				log.Warn("relay: DecryptUDP: %v", err)
+				continue
 			}
+			n = len(plainText)
 		} else {
 			sAddr := addr.(*net.UDPAddr)
-			target.Hostname = sAddr.IP.String()
-			target.Port = uint16(sAddr.Port)
+			var typ MetadataType
+			if sAddr.IP.To4() != nil {
+				typ = MetadataTypeIPv4
+			} else {
+				typ = MetadataTypeIPv6
+			}
+			target := Metadata{
+				Type:     typ,
+				Hostname: sAddr.IP.String(),
+				Port:     uint16(sAddr.Port),
+			}
 			b := target.BytesFromPool()
+			copy(buf[len(b):], buf[:n])
 			copy(buf, b)
+			n += len(b)
 			pool.Put(b)
 		}
-		shadowBytes, err = EncryptUDPFromPool(inKey, buf[:targetLen+n])
+		shadowBytes, err = EncryptUDPFromPool(inKey, buf[:n])
 		if err != nil {
 			log.Warn("relay: EncryptUDPFromPool: %v", err)
 			continue
