@@ -113,15 +113,13 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 
 		// dial
-		var rConn net.Conn
-		rConn, err = net.ListenUDP("udp", nil)
+		rc, err := net.ListenUDP("udp", nil)
 		if err != nil {
 			s.nm.Lock()
 			s.nm.Remove(connIdent) // close channel to inform that establishment ends
 			s.nm.Unlock()
 			return nil, nil, nil, "", fmt.Errorf("GetOrBuildUCPConn dial error: %w", err)
 		}
-		rc = rConn.(*net.UDPConn)
 		s.nm.Lock()
 		s.nm.Remove(connIdent) // close channel to inform that establishment ends
 		conn = s.nm.Insert(connIdent, rc)
