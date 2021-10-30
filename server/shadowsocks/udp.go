@@ -17,9 +17,9 @@ const (
 	DnsQueryTimeout   = 17 * time.Second // RFC 5452
 )
 
-func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
+func (s *Server) handleUDP(lAddr net.Addr, data []byte) (err error) {
 	// get conn or dial and relay
-	rc, passage, plainText, target, err := s.GetOrBuildUCPConn(lAddr, data[:n])
+	rc, passage, plainText, target, err := s.GetOrBuildUCPConn(lAddr, data)
 	if err != nil {
 		return fmt.Errorf("auth fail from: %v: %w", lAddr.String(), err)
 	}
@@ -37,7 +37,7 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 		if err != nil {
 			return err
 		}
-		if _, err = rc.WriteTo(plainText[size:], targetAddr); err != nil {
+		if _, err = rc.WriteToUDP(plainText[size:], targetAddr); err != nil {
 			return fmt.Errorf("write error: %w", err)
 		}
 	} else {
@@ -113,7 +113,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 
 		// dial
-		rc, err := net.ListenUDP("udp", nil)
+		rc, err = net.ListenUDP("udp", nil)
 		if err != nil {
 			s.nm.Lock()
 			s.nm.Remove(connIdent) // close channel to inform that establishment ends
@@ -174,10 +174,10 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 			}
 		}
 	}
-
+	var addr net.Addr
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
-		n, _, err = src.ReadFrom(buf[targetLen:])
+		n, addr, err = src.ReadFrom(buf[targetLen:])
 		if err != nil {
 			return
 		}
@@ -193,6 +193,13 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 				copy(buf[targetLen:], buf[targetLen+targetLen:])
 				n = len(plainText) - targetLen
 			}
+		} else {
+			sAddr := addr.(*net.UDPAddr)
+			target.Hostname = sAddr.IP.String()
+			target.Port = uint16(sAddr.Port)
+			b := target.BytesFromPool()
+			copy(buf, b)
+			pool.Put(b)
 		}
 		shadowBytes, err = EncryptUDPFromPool(inKey, buf[:targetLen+n])
 		if err != nil {

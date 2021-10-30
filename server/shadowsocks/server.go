@@ -217,7 +217,7 @@ func (s *Server) ListenUDP(addr string) (err error) {
 		data := pool.Get(n)
 		copy(data, buf[:n])
 		go func() {
-			err := s.handleUDP(lAddr, data, n)
+			err := s.handleUDP(lAddr, data)
 			if err != nil {
 				log.Warn("handleUDP: %v", err)
 			}
