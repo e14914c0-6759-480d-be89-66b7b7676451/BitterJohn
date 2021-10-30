@@ -19,7 +19,7 @@ const (
 
 func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 	// get conn or dial and relay
-	rc, passage, plainText, err := s.GetOrBuildUCPConn(lAddr, data[:n])
+	rc, passage, plainText, target, err := s.GetOrBuildUCPConn(lAddr, data[:n])
 	if err != nil {
 		return fmt.Errorf("auth fail from: %v: %w", lAddr.String(), err)
 	}
@@ -33,7 +33,11 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte, n int) (err error) {
 	size, _ := BytesSizeForMetadata(plainText)
 	if passage.Out == nil {
 		// send packet to target
-		if _, err = rc.Write(plainText[size:]); err != nil {
+		targetAddr, err := net.ResolveUDPAddr("udp", target)
+		if err != nil {
+			return err
+		}
+		if _, err = rc.WriteTo(plainText[size:], targetAddr); err != nil {
 			return fmt.Errorf("write error: %w", err)
 		}
 	} else {
@@ -73,7 +77,7 @@ func selectTimeout(packet []byte) time.Duration {
 
 // GetOrBuildUCPConn get a UDP conn from the mapping.
 // plainText is from pool. Please MUST put it back.
-func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, passage *Passage, plainText []byte, err error) {
+func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, passage *Passage, plainText []byte, target string, err error) {
 	var conn *UDPConn
 	var ok bool
 
@@ -89,12 +93,11 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	// auth every key
 	passage, plainText, err = s.authUDP(buf, data, userContext)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, "", err
 	}
-	var target string
 	targetMetadata, err := NewMetadata(plainText)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, "", err
 	}
 	if passage.Out == nil {
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
@@ -102,7 +105,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
 	}
 
-	connIdent := lAddr.String() + "<->" + target
+	connIdent := lAddr.String()
 	s.nm.Lock()
 	if conn, ok = s.nm.Get(connIdent); !ok {
 		// not exist such socket mapping, build one
@@ -110,12 +113,13 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 
 		// dial
-		rConn, err := net.Dial("udp", target)
+		var rConn net.Conn
+		rConn, err = net.ListenUDP("udp", nil)
 		if err != nil {
 			s.nm.Lock()
 			s.nm.Remove(connIdent) // close channel to inform that establishment ends
 			s.nm.Unlock()
-			return nil, nil, nil, fmt.Errorf("GetOrBuildUCPConn dial error: %w", err)
+			return nil, nil, nil, "", fmt.Errorf("GetOrBuildUCPConn dial error: %w", err)
 		}
 		rc = rConn.(*net.UDPConn)
 		s.nm.Lock()
@@ -144,7 +148,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	}
 	// countdown
 	_ = conn.UDPConn.SetReadDeadline(time.Now().Add(conn.timeout))
-	return rc, passage, plainText, nil
+	return rc, passage, plainText, target, nil
 }
 
 func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, passage Passage, target Metadata) (err error) {
