@@ -23,9 +23,7 @@ func SyncPassages(s Server, passages []Passage) (err error) {
 	return nil
 }
 
-
 func GenerateBandwidthLimit() (l model.BandwidthLimit, err error) {
-	now := time.Now()
 	limit := config.ParamsObj.John.BandwidthLimit
 	if !limit.Enable {
 		return model.BandwidthLimit{}, nil
@@ -47,7 +45,8 @@ func GenerateBandwidthLimit() (l model.BandwidthLimit, err error) {
 		}
 	}
 	l = model.BandwidthLimit{
-		ResetDay:         time.Date(now.Year(), now.Month(), int(limit.ResetDay), 0, 0, 0, 0, time.Local),
+		// 7th and 8th months have 31 days
+		ResetDay:         time.Date(2000, 7, int(limit.ResetDay), 0, 0, 0, 0, time.Local),
 		UplinkLimitGiB:   limit.UplinkLimitGiB,
 		DownlinkLimitGiB: limit.DownlinkLimitGiB,
 		TotalLimitGiB:    limit.TotalLimitGiB,
