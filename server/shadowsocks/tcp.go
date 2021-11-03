@@ -29,7 +29,6 @@ var (
 
 type DuplexConn interface {
 	net.Conn
-	CloseRead() error
 	CloseWrite() error
 }
 
@@ -203,12 +202,10 @@ func relayTCP(lConn, rConn DuplexConn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
 		_, e := io2.Copy(rConn, lConn)
-		lConn.CloseRead()
 		rConn.CloseWrite()
 		eCh <- e
 	}()
 	_, e := io2.Copy(lConn, rConn)
-	rConn.CloseRead()
 	lConn.CloseWrite()
 	if e != nil {
 		<-eCh
