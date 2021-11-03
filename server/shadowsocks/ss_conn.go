@@ -14,7 +14,6 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
-	"net"
 	"sync"
 )
 
@@ -28,7 +27,7 @@ var (
 )
 
 type SSConn struct {
-	net.Conn
+	DuplexConn
 	cipherConf CipherConf
 	masterKey  []byte
 
@@ -58,12 +57,12 @@ func EncryptedPayloadLen(plainTextLen int, tagLen int) int {
 	return plainTextLen + n*(2+tagLen+tagLen)
 }
 
-func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, err error) {
+func NewSSConn(conn DuplexConn, conf CipherConf, masterKey []byte) (crw *SSConn, err error) {
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
 	}
 	return &SSConn{
-		Conn:       conn,
+		DuplexConn:    conn,
 		cipherConf: conf,
 		masterKey:  masterKey,
 		nonceRead:  pool.GetZero(conf.NonceLen),
@@ -74,14 +73,14 @@ func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, e
 func (c *SSConn) Close() error {
 	pool.Put(c.nonceWrite)
 	pool.Put(c.nonceRead)
-	return c.Conn.Close()
+	return c.DuplexConn.Close()
 }
 
 func (c *SSConn) Read(b []byte) (n int, err error) {
 	c.onceRead.Do(func() {
 		var salt = pool.Get(c.cipherConf.SaltLen)
 		defer pool.Put(salt)
-		n, err = io.ReadFull(c.Conn, salt)
+		n, err = io.ReadFull(c.DuplexConn, salt)
 		if err != nil {
 			return
 		}
@@ -136,7 +135,7 @@ func (c *SSConn) Read(b []byte) (n int, err error) {
 func (c *SSConn) readChunk() ([]byte, error) {
 	bufLen := pool.Get(2 + c.cipherConf.TagLen)
 	defer pool.Put(bufLen)
-	if _, err := io.ReadFull(c.Conn, bufLen); err != nil {
+	if _, err := io.ReadFull(c.DuplexConn, bufLen); err != nil {
 		return nil, err
 	}
 	bLenPayload, err := c.cipherRead.Open(bufLen[:0], c.nonceRead, bufLen, nil)
@@ -147,7 +146,7 @@ func (c *SSConn) readChunk() ([]byte, error) {
 	common.BytesIncLittleEndian(c.nonceRead)
 	lenPayload := binary.BigEndian.Uint16(bLenPayload)
 	bufPayload := pool.Get(int(lenPayload) + c.cipherConf.TagLen) // delay putting back
-	if _, err = io.ReadFull(c.Conn, bufPayload); err != nil {
+	if _, err = io.ReadFull(c.DuplexConn, bufPayload); err != nil {
 		return nil, err
 	}
 	payload, err := c.cipherRead.Open(bufPayload[:0], c.nonceRead, bufPayload, nil)
@@ -206,7 +205,7 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 		common.BytesIncLittleEndian(c.nonceWrite)
 	}
 	//log.Trace("to write(%p): %v", &b, hex.EncodeToString(buf[:c.cipherConf.SaltLen]))
-	_, err = c.Conn.Write(buf)
+	_, err = c.DuplexConn.Write(buf)
 	if err != nil {
 		return 0, err
 	}

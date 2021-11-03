@@ -156,9 +156,10 @@ func initConfig() {
 	if err := v.Unmarshal(&config.ParamsObj); err != nil {
 		log.Fatal("Fatal error loading config: %s", err)
 	}
-	log.Trace("config: %v", v.AllSettings())
 
 	initLog()
+
+	log.Trace("config: %v", v.AllSettings())
 }
 
 func initLog() {

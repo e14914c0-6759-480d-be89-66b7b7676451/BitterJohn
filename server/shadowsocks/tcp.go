@@ -27,6 +27,12 @@ var (
 	ErrReplayAttack = fmt.Errorf("replay attack")
 )
 
+type DuplexConn interface {
+	net.Conn
+	CloseRead() error
+	CloseWrite() error
+}
+
 func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage) error {
 	if !passage.Manager {
 		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
@@ -116,7 +122,7 @@ func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage)
 }
 
 func (s *Server) handleTCP(conn net.Conn) error {
-	bConn := bufferred_conn.NewBufferedConnSize(conn, TCPBufferSize)
+	bConn := bufferred_conn.NewBufferedConnSize(conn.(*net.TCPConn), TCPBufferSize)
 	passage, err := s.authTCP(bConn)
 	if err != nil {
 		// Auth fail. Drain the conn
@@ -134,22 +140,20 @@ func (s *Server) handleTCP(conn net.Conn) error {
 
 	// handle connection
 	var target string
-	var lConn net.Conn
-	crw, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey)
+	lConn, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey)
 	if err != nil {
 		bConn.Close()
 		return err
 	}
-	defer crw.Close()
+	defer lConn.Close()
 	// Read target
-	targetMetadata, err := crw.ReadMetadata()
+	targetMetadata, err := lConn.ReadMetadata()
 	if err != nil {
 		return err
 	}
 	if targetMetadata.Type == MetadataTypeMsg {
-		return s.handleMsg(crw, targetMetadata, passage)
+		return s.handleMsg(lConn, targetMetadata, passage)
 	}
-	lConn = crw
 	if passage.Out == nil {
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 	} else {
@@ -170,22 +174,23 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		}
 		return err
 	}
+	defer rConn.Close()
 	if passage.Out != nil {
 		switch passage.Out.Protocol {
 		case model.ProtocolShadowsocks:
-			rConn, err = NewSSConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey)
+			rConn, err = NewSSConn(rConn.(*net.TCPConn), CiphersConf[passage.Out.Method], passage.outMasterKey)
 			if err != nil {
 				return err
 			}
+			defer rConn.Close()
 			addr := targetMetadata.BytesFromPool()
 			defer pool.Put(addr)
 			if _, err = rConn.Write(addr); err != nil {
-				rConn.Close()
 				return err
 			}
 		}
 	}
-	if err = relayTCP(lConn, rConn); err != nil {
+	if err = relayTCP(lConn, rConn.(DuplexConn)); err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			return nil // ignore i/o timeout
 		}
@@ -194,25 +199,25 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	return nil
 }
 
-func relayTCP(lConn, rConn net.Conn) (err error) {
-	defer rConn.Close()
+func relayTCP(lConn, rConn DuplexConn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
 		_, e := io2.Copy(rConn, lConn)
-		rConn.SetDeadline(time.Now())
-		lConn.SetDeadline(time.Now())
+		lConn.CloseRead()
+		rConn.CloseWrite()
 		eCh <- e
 	}()
 	_, e := io2.Copy(lConn, rConn)
-	rConn.SetDeadline(time.Now())
-	lConn.SetDeadline(time.Now())
+	rConn.CloseRead()
+	lConn.CloseWrite()
 	if e != nil {
+		<-eCh
 		return e
 	}
 	return <-eCh
 }
 
-func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, err error) {
+func (s *Server) authTCP(conn bufferred_conn.BufferedTCPConn) (passage *Passage, err error) {
 	var buf = pool.Get(BasicLen)
 	defer pool.Put(buf)
 	data, err := conn.Peek(BasicLen)
