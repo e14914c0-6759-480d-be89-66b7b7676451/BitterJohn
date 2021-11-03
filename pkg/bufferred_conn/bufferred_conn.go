@@ -5,28 +5,28 @@ import (
 	"net"
 )
 
-type BufferedTCPConn struct {
+type BufferedConn struct {
 	r        *bufio.Reader
-	*net.TCPConn // So that most methods are embedded
+	net.Conn // So that most methods are embedded
 }
 
-func NewBufferedConn(c *net.TCPConn) BufferedTCPConn {
-	return BufferedTCPConn{bufio.NewReader(c), c}
+func NewBufferedConn(c *net.TCPConn) BufferedConn {
+	return BufferedConn{bufio.NewReader(c), c}
 }
 
-func NewBufferedConnSize(c *net.TCPConn, n int) BufferedTCPConn {
-	return BufferedTCPConn{bufio.NewReaderSize(c, n), c}
+func NewBufferedConnSize(c *net.TCPConn, n int) BufferedConn {
+	return BufferedConn{bufio.NewReaderSize(c, n), c}
 }
 
-func (b BufferedTCPConn) Peek(n int) ([]byte, error) {
+func (b BufferedConn) Peek(n int) ([]byte, error) {
 	return b.r.Peek(n)
 }
 
-func (b BufferedTCPConn) Close() error {
+func (b BufferedConn) Close() error {
 	b.r.Put()
-	return b.TCPConn.Close()
+	return b.Conn.Close()
 }
 
-func (b BufferedTCPConn) Read(p []byte) (int, error) {
+func (b BufferedConn) Read(p []byte) (int, error) {
 	return b.r.Read(p)
 }

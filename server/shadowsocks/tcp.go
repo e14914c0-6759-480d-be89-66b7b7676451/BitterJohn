@@ -27,8 +27,7 @@ var (
 	ErrReplayAttack = fmt.Errorf("replay attack")
 )
 
-type DuplexConn interface {
-	net.Conn
+type WriteCloser interface {
 	CloseWrite() error
 }
 
@@ -177,7 +176,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	if passage.Out != nil {
 		switch passage.Out.Protocol {
 		case model.ProtocolShadowsocks:
-			rConn, err = NewSSConn(rConn.(*net.TCPConn), CiphersConf[passage.Out.Method], passage.outMasterKey)
+			rConn, err = NewSSConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey)
 			if err != nil {
 				return err
 			}
@@ -189,7 +188,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 			}
 		}
 	}
-	if err = relayTCP(lConn, rConn.(DuplexConn)); err != nil {
+	if err = relayTCP(lConn, rConn); err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			return nil // ignore i/o timeout
 		}
@@ -198,15 +197,21 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	return nil
 }
 
-func relayTCP(lConn, rConn DuplexConn) (err error) {
+func relayTCP(lConn, rConn net.Conn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
 		_, e := io2.Copy(rConn, lConn)
-		rConn.CloseWrite()
+		if rConn, ok := rConn.(WriteCloser); ok {
+			rConn.CloseWrite()
+		}
+		rConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		eCh <- e
 	}()
 	_, e := io2.Copy(lConn, rConn)
-	lConn.CloseWrite()
+	if lConn, ok := lConn.(WriteCloser); ok {
+		lConn.CloseWrite()
+	}
+	lConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	if e != nil {
 		<-eCh
 		return e
@@ -214,7 +219,7 @@ func relayTCP(lConn, rConn DuplexConn) (err error) {
 	return <-eCh
 }
 
-func (s *Server) authTCP(conn bufferred_conn.BufferedTCPConn) (passage *Passage, err error) {
+func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, err error) {
 	var buf = pool.Get(BasicLen)
 	defer pool.Put(buf)
 	data, err := conn.Peek(BasicLen)
