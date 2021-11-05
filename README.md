@@ -7,7 +7,7 @@ Server and relay side infrastructure for RDA.
 
 ```bash
 sudo ./BitterJohn install -g
-systemctl enable --now BitterJohn
+sudo systemctl enable --now BitterJohn
 ```
 
 ### upgrade
