@@ -15,6 +15,7 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0
 	github.com/v2rayA/beego/v2 v2.0.4
+	github.com/yl2chen/cidranger v1.0.2
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.0.0-20210510120150-4163338589ed
 
