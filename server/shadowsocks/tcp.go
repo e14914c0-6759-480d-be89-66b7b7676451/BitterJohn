@@ -3,6 +3,7 @@ package shadowsocks
 import (
 	"bytes"
 	"fmt"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	io2 "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/zeroalloc/io"
@@ -153,6 +154,11 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		return s.handleMsg(lConn, targetMetadata, passage)
 	}
 	if passage.Out == nil {
+		if isPrivate, err := common.IsPrivateHostname(targetMetadata.Hostname); err != nil {
+			return err
+		} else if isPrivate {
+			return fmt.Errorf("%w: %v", ErrDialPrivateAddress, targetMetadata.Hostname)
+		}
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 	} else {
 		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)

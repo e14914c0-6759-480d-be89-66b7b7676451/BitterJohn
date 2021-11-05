@@ -28,6 +28,8 @@ const (
 	MTU = 65535
 )
 
+var ErrDialPrivateAddress = fmt.Errorf("request to dial a private address")
+
 type Server struct {
 	closed    chan struct{}
 	sweetLisa config.Lisa
