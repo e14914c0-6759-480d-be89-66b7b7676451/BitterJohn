@@ -23,7 +23,7 @@ var DefaultLimitedDialer = net.Dialer{
 		ip, err := netaddr.ParseIP(host)
 		if err != nil {
 			// not a valid IP address
-			return nil
+			return err
 		}
 		if common.IsPrivate(ip.IPAddr().IP) {
 			return fmt.Errorf("%w: %v", ErrDialPrivateAddress, ip.String())
