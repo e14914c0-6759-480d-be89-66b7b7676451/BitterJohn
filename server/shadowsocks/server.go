@@ -7,6 +7,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
@@ -23,12 +24,6 @@ import (
 func init() {
 	server.Register("shadowsocks", New)
 }
-
-const (
-	MTU = 65535
-)
-
-var ErrDialPrivateAddress = fmt.Errorf("request to dial a private address")
 
 type Server struct {
 	closed    chan struct{}
@@ -206,7 +201,7 @@ func (s *Server) ListenUDP(addr string) (err error) {
 		return err
 	}
 	s.udpConn = lu
-	var buf [MTU]byte
+	var buf [ip_mtu_trie.MTU]byte
 	for {
 		n, lAddr, err := lu.ReadFrom(buf[:])
 		if err != nil {

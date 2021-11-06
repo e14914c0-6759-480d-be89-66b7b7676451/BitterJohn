@@ -1,10 +1,14 @@
-package shadowsocks
+package ip_mtu_trie
 
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/trie"
 	"net"
 	"strconv"
 	"strings"
+)
+
+const (
+	MTU = 65535
 )
 
 var MTUTrie *IPMTUTrie

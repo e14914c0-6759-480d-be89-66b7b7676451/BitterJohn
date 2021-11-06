@@ -3,8 +3,10 @@ package shadowsocks
 import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"golang.org/x/net/dns/dnsmessage"
 	"io"
@@ -49,6 +51,9 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte) (err error) {
 	targetAddr, err := net.ResolveUDPAddr("udp", target)
 	if err != nil {
 		return err
+	}
+	if common.IsPrivate(targetAddr.IP) {
+		return fmt.Errorf("%w: %v", server.ErrDialPrivateAddress, targetAddr.String())
 	}
 	if _, err = rc.WriteToUDP(toWrite, targetAddr); err != nil {
 		return fmt.Errorf("write error: %w", err)
@@ -96,11 +101,6 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		return nil, nil, nil, "", err
 	}
 	if passage.Out == nil {
-		if isPrivate, err := common.IsPrivateHostname(targetMetadata.Hostname); err != nil {
-			return nil, nil, nil, "", err
-		} else if isPrivate {
-			return nil, nil, nil, "", fmt.Errorf("%w: %v", ErrDialPrivateAddress, targetMetadata.Hostname)
-		}
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 	} else {
 		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
@@ -155,7 +155,7 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 		n           int
 		shadowBytes []byte
 	)
-	buf := pool.Get(BasicLen + MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
+	buf := pool.Get(BasicLen + ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)
 	var inKey, outKey Key
 	inKey = Key{
