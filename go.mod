@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/cloudflare/cloudflare-go v0.26.0
-	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211028080841-aede37595f6b
+	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211106045307-739b77368531
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
 	github.com/manifoldco/promptui v0.8.0
@@ -18,6 +18,7 @@ require (
 	github.com/yl2chen/cidranger v1.0.2
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.0.0-20210510120150-4163338589ed
+	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
 
 )
 
@@ -67,7 +68,6 @@ require (
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/ini.v1 v1.63.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6 // indirect
 )
 
 //replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa

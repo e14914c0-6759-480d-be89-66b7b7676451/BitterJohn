@@ -17,6 +17,8 @@ type Argument struct {
 	Name      string
 	Hostnames string
 	Port      int
+
+	NoRelay bool
 }
 
 type Server interface {

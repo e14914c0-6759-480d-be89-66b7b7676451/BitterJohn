@@ -250,6 +250,17 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		downlinkLimitGiB     int64
 		totalLimitGiB        int64
 	)
+
+	var noRelay bool
+	prompt = &promptui.Prompt{
+		Label:     "This machine is an Endpoint Server and no need for relay (like IPLC)?",
+		IsConfirm: true,
+	}
+	_, err = prompt.Run()
+	if err == nil {
+		noRelay = true
+	}
+
 	prompt = &promptui.Prompt{
 		Label:     "Do you want to set bandwidth limit?",
 		IsConfirm: true,
@@ -302,6 +313,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 				DownlinkLimitGiB: downlinkLimitGiB,
 				TotalLimitGiB:    totalLimitGiB,
 			},
+			NoRelay: noRelay,
 		},
 	}, true, nil
 }

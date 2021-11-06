@@ -144,6 +144,7 @@ func (s *Server) register() error {
 			Method:   manager.In.Method,
 		},
 		BandwidthLimit: bandwidthLimit,
+		NoRelay:        s.arg.NoRelay,
 	})
 	if err != nil {
 		return err

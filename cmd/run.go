@@ -71,6 +71,7 @@ func Run() {
 			Name:      conf.John.Name,
 			Hostnames: conf.John.Hostname,
 			Port:      conf.John.Port,
+			NoRelay:   conf.John.NoRelay,
 		})
 	if err != nil {
 		log.Fatal("%v", err)

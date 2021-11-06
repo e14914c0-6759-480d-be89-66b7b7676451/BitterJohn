@@ -15,6 +15,7 @@ type John struct {
 	Ticket   string `json:"ticket" required:"" desc:"Ticket from SweetLisa"`
 
 	BandwidthLimit BandwidthLimit `json:"bandwidthLimit"`
+	NoRelay        bool           `json:"noRelay"`
 }
 
 type BandwidthLimit struct {
