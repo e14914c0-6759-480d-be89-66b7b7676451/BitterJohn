@@ -99,9 +99,10 @@ func (l *LruList) Insert(vals []interface{}) []*Node {
 
 	// expand the list
 	if cap(l.list) >= len(l.list)+len(vals) {
+		oldLen := len(l.list)
 		l.list = l.list[:len(l.list)+len(vals)]
-		for i := len(l.list) - 1; i > insertBefore; i-- {
-			l.list[i] = l.list[i-len(vals)]
+		for i := oldLen - 1; i >= insertBefore; i-- {
+			l.list[i+len(vals)] = l.list[i]
 		}
 		for i := 0; i < len(vals); i++ {
 			l.list[insertBefore+i] = &Node{Val: vals[i], weight: newWeight}
