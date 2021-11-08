@@ -138,7 +138,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 
 	// handle connection
 	var target string
-	lConn, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey)
+	lConn, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey, s.bloom)
 	if err != nil {
 		bConn.Close()
 		return err
@@ -176,7 +176,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	if passage.Out != nil {
 		switch passage.Out.Protocol {
 		case model.ProtocolShadowsocks:
-			rConn, err = NewSSConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey)
+			rConn, err = NewSSConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey, nil)
 			if err != nil {
 				return err
 			}
@@ -235,7 +235,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 		return nil, ErrFailAuth
 	}
 	// check bloom
-	if exist := s.bloom.ExistOrAdd(data[:CiphersConf[passage.In.Method].SaltLen]); exist {
+	if exist := s.bloom.Exist(data[:CiphersConf[passage.In.Method].SaltLen]); exist {
 		return nil, ErrReplayAttack
 	}
 	return passage, nil

@@ -53,7 +53,7 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte) (err error) {
 		return err
 	}
 	if common.IsPrivate(targetAddr.IP) {
-		return fmt.Errorf("%w: %v", server.ErrDialPrivateAddress, targetAddr.String())
+		return fmt.Errorf("%w: %v from %v", server.ErrDialPrivateAddress, targetAddr.String(), lAddr.String())
 	}
 	if _, err = rc.WriteToUDP(toWrite, targetAddr); err != nil {
 		return fmt.Errorf("write error: %w", err)
@@ -128,7 +128,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 		// relay
 		go func() {
-			_ = relay(s.udpConn, lAddr, rc, conn.timeout, *passage)
+			_ = s.relay(lAddr, rc, conn.timeout, *passage)
 			s.nm.Lock()
 			s.nm.Remove(connIdent)
 			s.nm.Unlock()
@@ -150,7 +150,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 	return rc, passage, plainText, target, nil
 }
 
-func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration, passage Passage) (err error) {
+func (s *Server) relay(laddr net.Addr, src *net.UDPConn, timeout time.Duration, passage Passage) (err error) {
 	var (
 		n           int
 		shadowBytes []byte
@@ -178,7 +178,7 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 		if err != nil {
 			return
 		}
-		_ = dst.SetWriteDeadline(time.Now().Add(DefaultNatTimeout)) // should keep consistent
+		_ = s.udpConn.SetWriteDeadline(time.Now().Add(DefaultNatTimeout)) // should keep consistent
 		if passage.Out != nil {
 			plainText, err := DecryptUDP(outKey, buf[:n])
 			if err != nil {
@@ -210,7 +210,8 @@ func relay(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Dura
 			log.Warn("relay: EncryptUDPFromPool: %v", err)
 			continue
 		}
-		_, err = dst.WriteTo(shadowBytes, laddr)
+		s.bloom.ExistOrAdd(shadowBytes[:inKey.CipherConf.SaltLen])
+		_, err = s.udpConn.WriteTo(shadowBytes, laddr)
 		if err != nil {
 			pool.Put(shadowBytes)
 			return

@@ -4,11 +4,13 @@ import (
 	"crypto/cipher"
 	"crypto/sha1"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	disk_bloom "github.com/mzz2017/disk-bloom"
 	"golang.org/x/crypto/hkdf"
 	"hash"
 	"hash/fnv"
@@ -43,6 +45,8 @@ type SSConn struct {
 	mutex       sync.Mutex
 	leftToRead  []byte
 	indexToRead int
+
+	bloom *disk_bloom.FilterGroup
 }
 
 type Key struct {
@@ -58,7 +62,7 @@ func EncryptedPayloadLen(plainTextLen int, tagLen int) int {
 	return plainTextLen + n*(2+tagLen+tagLen)
 }
 
-func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, err error) {
+func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte, bloom *disk_bloom.FilterGroup) (crw *SSConn, err error) {
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
 	}
@@ -68,6 +72,7 @@ func NewSSConn(conn net.Conn, conf CipherConf, masterKey []byte) (crw *SSConn, e
 		masterKey:  masterKey,
 		nonceRead:  pool.GetZero(conf.NonceLen),
 		nonceWrite: pool.GetZero(conf.NonceLen),
+		bloom:      bloom,
 	}, nil
 }
 
@@ -85,6 +90,12 @@ func (c *SSConn) Read(b []byte) (n int, err error) {
 		if err != nil {
 			return
 		}
+		if c.bloom != nil {
+			if c.bloom.ExistOrAdd(salt) {
+				err = ErrReplayAttack
+				return
+			}
+		}
 		subKey := pool.Get(c.cipherConf.KeyLen)
 		defer pool.Put(subKey)
 		kdf := hkdf.New(
@@ -100,6 +111,9 @@ func (c *SSConn) Read(b []byte) (n int, err error) {
 		c.cipherRead, err = c.cipherConf.NewCipher(subKey)
 	})
 	if c.cipherRead == nil {
+		if errors.Is(err, ErrReplayAttack) {
+			return 0, fmt.Errorf("%v: %w", ErrFailInitCihper, err)
+		}
 		return 0, fmt.Errorf("%w: %v", ErrFailInitCihper, err)
 	}
 	c.mutex.Lock()
@@ -184,6 +198,9 @@ func (c *SSConn) Write(b []byte) (n int, err error) {
 		}
 		c.cipherWrite, err = c.cipherConf.NewCipher(subKey)
 		offset += c.cipherConf.SaltLen
+		if c.bloom != nil {
+			c.bloom.ExistOrAdd(buf[:c.cipherConf.SaltLen])
+		}
 		//log.Trace("salt(%p): %v", &b, hex.EncodeToString(buf[:c.cipherConf.SaltLen]))
 	})
 	if buf == nil {
