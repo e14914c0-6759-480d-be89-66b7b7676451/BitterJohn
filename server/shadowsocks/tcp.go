@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	io2 "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/zeroalloc/io"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
@@ -22,16 +21,7 @@ const (
 	TCPBufferSize = 32 * 1024
 )
 
-var (
-	ErrPassageAbuse = fmt.Errorf("passage abuse")
-	ErrReplayAttack = fmt.Errorf("replay attack")
-)
-
-type WriteCloser interface {
-	CloseWrite() error
-}
-
-func (s *Server) handleMsg(crw *SSConn, reqMetadata *Metadata, passage *Passage) error {
+func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage) error {
 	if !passage.Manager {
 		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
 	}
@@ -138,7 +128,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 
 	// handle connection
 	var target string
-	lConn, err := NewSSConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey, s.bloom)
+	lConn, err := NewTCPConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey, s.bloom)
 	if err != nil {
 		bConn.Close()
 		return err
@@ -160,7 +150,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 
 	// manager should not come to this line
 	if passage.Manager {
-		return fmt.Errorf("%w: manager key is ubused for a non-cmd connection", ErrPassageAbuse)
+		return fmt.Errorf("%w: manager key is ubused for a non-cmd connection", server.ErrPassageAbuse)
 	}
 
 	// Dial and relay
@@ -176,7 +166,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	if passage.Out != nil {
 		switch passage.Out.Protocol {
 		case model.ProtocolShadowsocks:
-			rConn, err = NewSSConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey, nil)
+			rConn, err = NewTCPConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey, nil)
 			if err != nil {
 				return err
 			}
@@ -188,35 +178,13 @@ func (s *Server) handleTCP(conn net.Conn) error {
 			}
 		}
 	}
-	if err = relayTCP(lConn, rConn); err != nil {
+	if err = server.RelayTCP(lConn, rConn); err != nil {
 		if err, ok := err.(net.Error); ok && err.Timeout() {
 			return nil // ignore i/o timeout
 		}
 		return fmt.Errorf("handleConn relay error: %w", err)
 	}
 	return nil
-}
-
-func relayTCP(lConn, rConn net.Conn) (err error) {
-	eCh := make(chan error, 1)
-	go func() {
-		_, e := io2.Copy(rConn, lConn)
-		if rConn, ok := rConn.(WriteCloser); ok {
-			rConn.CloseWrite()
-		}
-		rConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		eCh <- e
-	}()
-	_, e := io2.Copy(lConn, rConn)
-	if lConn, ok := lConn.(WriteCloser); ok {
-		lConn.CloseWrite()
-	}
-	lConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	if e != nil {
-		<-eCh
-		return e
-	}
-	return <-eCh
 }
 
 func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, err error) {
@@ -236,7 +204,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 	}
 	// check bloom
 	if exist := s.bloom.Exist(data[:CiphersConf[passage.In.Method].SaltLen]); exist {
-		return nil, ErrReplayAttack
+		return nil, server.ErrReplayAttack
 	}
 	return passage, nil
 }

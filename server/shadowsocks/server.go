@@ -176,8 +176,8 @@ func (s *Server) ListenTCP(addr string) (err error) {
 		go func() {
 			err := s.handleTCP(conn)
 			if err != nil {
-				if errors.Is(err, ErrPassageAbuse) ||
-					errors.Is(err, ErrReplayAttack) {
+				if errors.Is(err, server.ErrPassageAbuse) ||
+					errors.Is(err, server.ErrReplayAttack) {
 					log.Warn("handleTCP: %v", err)
 				} else {
 					log.Info("handleTCP: %v", err)
@@ -363,7 +363,7 @@ func (s *Server) ContentionCheck(thisIP net.IP, passage *Passage) (err error) {
 		passageKey := passage.In.Argument.Hash()
 		accept, conflictIP := s.passageContentionCache.Check(passageKey, contentionDuration, thisIP)
 		if !accept {
-			return fmt.Errorf("%w: from %v and %v: contention detected", ErrPassageAbuse, thisIP.String(), conflictIP.String())
+			return fmt.Errorf("%w: from %v and %v: contention detected", server.ErrPassageAbuse, thisIP.String(), conflictIP.String())
 		}
 	}
 	return nil
