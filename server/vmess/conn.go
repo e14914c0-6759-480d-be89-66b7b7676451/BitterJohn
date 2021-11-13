@@ -13,6 +13,8 @@ import (
 	"sync"
 )
 
+const MaxChunkSize = 2048
+
 type Conn struct {
 	net.Conn
 	initRead  sync.Once
@@ -61,7 +63,7 @@ func (c *Conn) Close() error {
 }
 
 func (c *Conn) chunks(size int) (payloadSize int, numChunks int) {
-	payloadSize = 2048 - c.writeBodyCipher.Overhead() - int(c.writeChunkSizeParser.SizeBytes()) - int(c.writePaddingGenerator.MaxPaddingLen())
+	payloadSize = MaxChunkSize - c.writeBodyCipher.Overhead() - int(c.writeChunkSizeParser.SizeBytes()) - int(c.writePaddingGenerator.MaxPaddingLen())
 	if size%payloadSize == 0 {
 		return payloadSize, size / payloadSize
 	}

@@ -71,7 +71,8 @@ func (s *Server) handleConn(conn net.Conn) error {
 	case InstructionCmdTCP:
 		rConn, err := server.DefaultLimitedDialer.Dial("tcp", target)
 		if err != nil {
-			if err, ok := err.(net.Error); ok && err.Timeout() {
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
 				log.Debug("%v", err)
 				return nil // ignore i/o timeout
 			}
@@ -91,7 +92,8 @@ func (s *Server) handleConn(conn net.Conn) error {
 			}
 		}
 		if err = server.RelayTCP(lConn, rConn); err != nil {
-			if err, ok := err.(net.Error); ok && err.Timeout() {
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
 				return nil // ignore i/o timeout
 			}
 			return fmt.Errorf("relay error: %w", err)
@@ -101,14 +103,15 @@ func (s *Server) handleConn(conn net.Conn) error {
 		// symmetric nat
 		rConn, err := server.DefaultLimitedDialer.Dial("udp", target)
 		if err != nil {
-			if err, ok := err.(net.Error); ok && err.Timeout() {
-				log.Debug("%v", err)
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
 				return nil // ignore i/o timeout
 			}
 			return err
 		}
-		if err = server.RelayUDPToConn(lConn, rConn.(*net.UDPConn), server.DefaultNatTimeout); err != nil {
-			if err, ok := err.(net.Error); ok && err.Timeout() {
+		if err = relayUoT(rConn.(*net.UDPConn), rConn.RemoteAddr(), lConn); err != nil {
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
 				return nil // ignore i/o timeout
 			}
 			return fmt.Errorf("relay error: %w", err)
@@ -224,4 +227,45 @@ func (s *Server) handleMsg(conn *Conn, reqMetadata *Metadata, passage *Passage) 
 	copy(buf[4:], resp)
 	_, err := conn.Write(buf)
 	return err
+}
+
+func relayConnToUDP(dst *net.UDPConn, src *Conn, timeout time.Duration) (err error) {
+	var n int
+	buf := pool.Get(MaxChunkSize)
+	defer pool.Put(buf)
+	for {
+		_ = src.SetReadDeadline(time.Now().Add(timeout))
+		n, err = src.Read(buf)
+		if err != nil {
+			return
+		}
+		_ = dst.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
+		_, err = dst.Write(buf[:n])
+		if err != nil {
+			return
+		}
+	}
+}
+
+func relayUoT(rConn *net.UDPConn, raddr net.Addr, lConn *Conn) (err error) {
+	eCh := make(chan error, 1)
+	go func() {
+		e := relayConnToUDP(rConn, lConn, server.DefaultNatTimeout)
+		rConn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		eCh <- e
+	}()
+	e := server.RelayUDPToConn(lConn, rConn, server.DefaultNatTimeout)
+	if lConn, ok := lConn.Conn.(server.WriteCloser); ok {
+		lConn.CloseWrite()
+	}
+	lConn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	if e != nil {
+		var netErr net.Error
+		if errors.As(e, &netErr) && netErr.Timeout() {
+			return <-eCh
+		}
+		<-eCh
+		return e
+	}
+	return <-eCh
 }
