@@ -8,8 +8,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
-	"github.com/v2fly/v2ray-core/v4/common/crypto"
-	"github.com/v2fly/v2ray-core/v4/proxy/vmess/encoding"
 	"io"
 	"net"
 	"sync"
@@ -25,14 +23,14 @@ type Conn struct {
 	NewAEAD func(key []byte) (cipher.AEAD, error)
 
 	writeBodyCipher       cipher.AEAD
-	writeNonceGenerator   crypto.BytesGenerator
-	writeChunkSizeParser  crypto.ChunkSizeEncoder
-	writePaddingGenerator crypto.PaddingLengthGenerator
+	writeNonceGenerator   BytesGenerator
+	writeChunkSizeParser  ChunkSizeEncoder
+	writePaddingGenerator PaddingLengthGenerator
 
 	readBodyCipher       cipher.AEAD
-	readNonceGenerator   crypto.BytesGenerator
-	readChunkSizeParser  crypto.ChunkSizeDecoder
-	readPaddingGenerator crypto.PaddingLengthGenerator
+	readNonceGenerator   BytesGenerator
+	readChunkSizeParser  ChunkSizeDecoder
+	readPaddingGenerator PaddingLengthGenerator
 
 	requestBodyKey [16]byte
 	requestBodyIV  [16]byte
@@ -70,7 +68,7 @@ func (c *Conn) chunks(size int) (payloadSize int, numChunks int) {
 	return payloadSize, size/payloadSize + 1
 }
 
-func GenerateChunkNonce(nonce []byte, size uint32) crypto.BytesGenerator {
+func GenerateChunkNonce(nonce []byte, size uint32) BytesGenerator {
 	c := append([]byte(nil), nonce...)
 	count := uint16(0)
 	return func() []byte {
@@ -173,12 +171,12 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			}
 
 			if ContainOption(c.requestOptions, OptionChunkLengthMasking) {
-				c.writeChunkSizeParser = encoding.NewShakeSizeParser(c.requestBodyIV[:])
+				c.writeChunkSizeParser = NewShakeSizeParser(c.requestBodyIV[:])
 				if ContainOption(c.requestOptions, OptionGlobalPadding) {
-					c.writePaddingGenerator = c.writeChunkSizeParser.(crypto.PaddingLengthGenerator)
+					c.writePaddingGenerator = c.writeChunkSizeParser.(PaddingLengthGenerator)
 				}
 			} else {
-				c.writeChunkSizeParser = crypto.PlainChunkSizeParser{}
+				c.writeChunkSizeParser = PlainChunkSizeParser{}
 			}
 			if c.writePaddingGenerator == nil {
 				c.writePaddingGenerator = PlainPaddingGenerator{}
@@ -198,13 +196,13 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				return
 			}
 			if ContainOption(c.requestOptions, OptionChunkLengthMasking) {
-				c.writeChunkSizeParser = encoding.NewShakeSizeParser(c.responseBodyIV[:])
+				c.writeChunkSizeParser = NewShakeSizeParser(c.responseBodyIV[:])
 
 				if ContainOption(c.requestOptions, OptionGlobalPadding) {
-					c.writePaddingGenerator = c.writeChunkSizeParser.(crypto.PaddingLengthGenerator)
+					c.writePaddingGenerator = c.writeChunkSizeParser.(PaddingLengthGenerator)
 				}
 			} else {
-				c.writeChunkSizeParser = crypto.PlainChunkSizeParser{}
+				c.writeChunkSizeParser = PlainChunkSizeParser{}
 			}
 			if c.writePaddingGenerator == nil {
 				c.writePaddingGenerator = PlainPaddingGenerator{}
@@ -275,13 +273,13 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 			}
 
 			if ContainOption(c.requestOptions, OptionChunkLengthMasking) {
-				c.readChunkSizeParser = encoding.NewShakeSizeParser(c.responseBodyIV[:])
+				c.readChunkSizeParser = NewShakeSizeParser(c.responseBodyIV[:])
 
 				if ContainOption(c.requestOptions, OptionGlobalPadding) {
-					c.readPaddingGenerator = c.readChunkSizeParser.(crypto.PaddingLengthGenerator)
+					c.readPaddingGenerator = c.readChunkSizeParser.(PaddingLengthGenerator)
 				}
 			} else {
-				c.readChunkSizeParser = crypto.PlainChunkSizeParser{}
+				c.readChunkSizeParser = PlainChunkSizeParser{}
 			}
 			if c.readPaddingGenerator == nil {
 				c.readPaddingGenerator = PlainPaddingGenerator{}
@@ -329,13 +327,13 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if ContainOption(c.requestOptions, OptionChunkLengthMasking) {
-				c.readChunkSizeParser = encoding.NewShakeSizeParser(c.requestBodyIV[:])
+				c.readChunkSizeParser = NewShakeSizeParser(c.requestBodyIV[:])
 
 				if ContainOption(c.requestOptions, OptionGlobalPadding) {
-					c.readPaddingGenerator = c.readChunkSizeParser.(crypto.PaddingLengthGenerator)
+					c.readPaddingGenerator = c.readChunkSizeParser.(PaddingLengthGenerator)
 				}
 			} else {
-				c.readChunkSizeParser = crypto.PlainChunkSizeParser{}
+				c.readChunkSizeParser = PlainChunkSizeParser{}
 			}
 			if c.readPaddingGenerator == nil {
 				c.readPaddingGenerator = PlainPaddingGenerator{}

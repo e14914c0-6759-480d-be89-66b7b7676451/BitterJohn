@@ -13,7 +13,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	"github.com/v2fly/v2ray-core/v4/common/antireplay"
 	"golang.org/x/crypto/chacha20poly1305"
 	"hash"
 	"hash/crc32"
@@ -33,6 +32,20 @@ const (
 	KDFSaltConstVMessHeaderPayloadLengthAEADKey = "VMess Header AEAD Key_Length"
 	KDFSaltConstVMessHeaderPayloadLengthAEADIV  = "VMess Header AEAD Nonce_Length"
 )
+
+type BytesGenerator func() []byte
+
+// ChunkSizeEncoder is a utility class to encode size value into bytes.
+type ChunkSizeEncoder interface {
+	SizeBytes() int32
+	Encode(uint16, []byte) []byte
+}
+
+// ChunkSizeDecoder is a utility class to decode size value from bytes.
+type ChunkSizeDecoder interface {
+	SizeBytes() int32
+	Decode([]byte) (uint16, error)
+}
 
 type Cipher string
 
@@ -112,7 +125,7 @@ func PutEAuthID(dst []byte, cmdKey []byte) []byte {
 	return dst[:16]
 }
 
-func AuthEAuthID(blk cipher.Block, eAuthID []byte, doubleCuckoo *antireplay.ReplayFilter, startTimestamp int64) error {
+func AuthEAuthID(blk cipher.Block, eAuthID []byte, doubleCuckoo *ReplayFilter, startTimestamp int64) error {
 	buf := pool.Get(16)
 	defer pool.Put(buf)
 	blk.Decrypt(buf, eAuthID)

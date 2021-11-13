@@ -1,9 +1,12 @@
 package vmess
 
-import "github.com/v2fly/v2ray-core/v4/common/crypto"
+type PaddingLengthGenerator interface {
+	MaxPaddingLen() uint16
+	NextPaddingLen() uint16
+}
 
 type PlainPaddingGenerator struct {
-	crypto.PaddingLengthGenerator
+	PaddingLengthGenerator
 }
 
 func (PlainPaddingGenerator) MaxPaddingLen() uint16 {

@@ -10,7 +10,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
-	"github.com/v2fly/v2ray-core/v4/common/antireplay"
 	"net"
 	"strconv"
 	"sync"
@@ -34,11 +33,11 @@ type Server struct {
 	passageContentionCache *server.ContentionCache
 
 	startTimestamp int64
-	doubleCuckoo   *antireplay.ReplayFilter
+	doubleCuckoo   *ReplayFilter
 }
 
 func New(valueCtx context.Context, sweetLisaHost *config.Lisa, arg server.Argument) (server.Server, error) {
-	doubleCuckoo := valueCtx.Value("doubleCuckoo").(*antireplay.ReplayFilter)
+	doubleCuckoo := valueCtx.Value("doubleCuckoo").(*ReplayFilter)
 	s := &Server{
 		doubleCuckoo:           doubleCuckoo,
 		passages:               nil,
