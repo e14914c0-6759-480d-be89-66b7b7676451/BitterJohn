@@ -4,7 +4,6 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
@@ -93,7 +92,7 @@ func (c *Conn) sealFromPool(b []byte) (data []byte) {
 
 	c.writeBodyCipher.Seal(data[sizeSize:sizeSize], c.writeNonceGenerator(), b, nil)
 	fastrand.Read(data[len(data)-int(paddingSize):])
-	log.Warn("write: size: %v, padding: %v", encryptedSize+paddingSize, paddingSize)
+	//log.Warn("write: size: %v, padding: %v", encryptedSize+paddingSize, paddingSize)
 	return data
 }
 
@@ -248,7 +247,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if _, err = ciph.Open(buf[:0], KDF(c.responseBodyIV[:], []byte(KDFSaltConstAEADRespHeaderLenIV))[:12], buf, nil); err != nil {
-				log.Warn("err1: %v %v", err, hex.EncodeToString(c.responseBodyKey[:]))
 				return
 			}
 			headerSize := binary.BigEndian.Uint16(buf[:2])
@@ -305,7 +303,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if _, err = ciph.Open(buf[:0], KDF(c.cmdKey, []byte(KDFSaltConstVMessHeaderPayloadLengthAEADIV), c.metadata.authedEAuthID[:], connectionNonce)[:12], buf[:18], c.metadata.authedEAuthID[:]); err != nil {
-				log.Warn("err1: %v %v", err, hex.EncodeToString(c.cmdKey))
 				return
 			}
 			lenInstruction := binary.BigEndian.Uint16(buf)
@@ -320,7 +317,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if _, err = ciph.Open(instructionData[:0], KDF(c.cmdKey, []byte(KDFSaltConstVMessHeaderPayloadAEADIV), c.metadata.authedEAuthID[:], connectionNonce)[:12], instructionData, c.metadata.authedEAuthID[:]); err != nil {
-				log.Warn("err2: %v %v", err, hex.EncodeToString(c.cmdKey))
 				return
 			}
 			if err = c.InitContext(instructionData[:lenInstruction]); err != nil {
@@ -329,7 +325,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 			if err = c.metadata.CompleteFromInstructionData(instructionData[:lenInstruction]); err != nil {
 				return
 			}
-			log.Warn("c.metadata: %v", c.metadata)
 
 			if c.readBodyCipher, err = c.NewAEAD(c.requestBodyKey[:]); err != nil {
 				return
@@ -404,7 +399,7 @@ func (c *Conn) readSize() (size uint16, padding uint16, err error) {
 	if err != nil {
 		return size, padding, err
 	}
-	log.Warn("read: size: %v, padding: %v", size, padding)
+	//log.Warn("read: size: %v, padding: %v", size, padding)
 	return size, padding, nil
 }
 
