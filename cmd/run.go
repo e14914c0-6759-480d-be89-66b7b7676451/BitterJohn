@@ -12,10 +12,10 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/v2fly/v2ray-core/v4/common/antireplay"
 	"net"
 	"os"
 	"path/filepath"
@@ -70,7 +70,7 @@ func Run() {
 		}
 		ctx = context.WithValue(context.Background(), "bloom", bloom)
 	case string(model.ProtocolVMessTCP):
-		doubleCuckoo := antireplay.NewReplayFilter(120)
+		doubleCuckoo := vmess.NewReplayFilter(120)
 		ctx = context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo)
 	}
 
