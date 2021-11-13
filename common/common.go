@@ -34,6 +34,13 @@ func BytesIncLittleEndian(b []byte) {
 	}
 }
 
+func Abs64(a int64) int64 {
+	if a < 0 {
+		return -a
+	}
+	return a
+}
+
 func Min(a, b int) int {
 	if a < b {
 		return a

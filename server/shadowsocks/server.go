@@ -27,7 +27,7 @@ func init() {
 
 type Server struct {
 	closed    chan struct{}
-	sweetLisa config.Lisa
+	sweetLisa *config.Lisa
 	typ       string
 	arg       server.Argument
 	lastAlive time.Time
@@ -60,9 +60,9 @@ func (p *Passage) Use() (use server.PassageUse) {
 	}
 }
 
-func New(valueCtx context.Context, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+func New(valueCtx context.Context, sweetLisaHost *config.Lisa, arg server.Argument) (server.Server, error) {
 	bloom := valueCtx.Value("bloom").(*disk_bloom.FilterGroup)
-	s := Server{
+	s := &Server{
 		userContextPool:        (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
 		nm:                     NewUDPConnMapping(),
 		sweetLisa:              sweetLisaHost,
@@ -71,16 +71,18 @@ func New(valueCtx context.Context, sweetLisaHost config.Lisa, arg server.Argumen
 		passageContentionCache: server.NewContentionCache(),
 		bloom:                  bloom,
 	}
-	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
-		return nil, err
-	}
+	if sweetLisaHost != nil {
+		if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
+			return nil, err
+		}
 
-	// connect to SweetLisa and register
-	if err := s.register(); err != nil {
-		return nil, err
+		// connect to SweetLisa and register
+		if err := s.register(); err != nil {
+			return nil, err
+		}
+		go s.registerBackground()
 	}
-	go s.registerBackground()
-	return &s, nil
+	return s, nil
 }
 
 func (s *Server) registerBackground() {
@@ -98,13 +100,13 @@ func (s *Server) registerBackground() {
 				log.Warn("Lost connection with SweetLisa more than 5 minutes. Try to register again")
 			}
 			if err := s.register(); err != nil {
-				log.Warn("registerBackground: %v", err)
 				// binary exponential backoff algorithm
 				// to avoid DDoS
 				interval = interval * 2
 				if interval > 600*time.Second {
 					interval = 600 * time.Second
 				}
+				log.Warn("registerBackground: %v. retry in %v", err, interval.String())
 			} else {
 				interval = 2 * time.Second
 			}
@@ -139,7 +141,7 @@ func (s *Server) register() error {
 		Hosts:  s.arg.Hostnames,
 		Port:   s.arg.Port,
 		Argument: model.Argument{
-			Protocol: "shadowsocks",
+			Protocol: model.ProtocolShadowsocks,
 			Password: manager.In.Password,
 			Method:   manager.In.Method,
 		},

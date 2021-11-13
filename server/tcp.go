@@ -1,15 +1,9 @@
 package server
 
 import (
-	"fmt"
 	io2 "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/zeroalloc/io"
 	"net"
 	"time"
-)
-
-var (
-	ErrPassageAbuse = fmt.Errorf("passage abuse")
-	ErrReplayAttack = fmt.Errorf("replay attack")
 )
 
 type WriteCloser interface {

@@ -12,8 +12,10 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/v2fly/v2ray-core/v4/common/antireplay"
 	"net"
 	"os"
 	"path/filepath"
@@ -59,14 +61,22 @@ func Run() {
 
 	conf := config.ParamsObj
 
-	bloom, err := disk_bloom.NewBloom(filepath.Join(filepath.Dir(v.ConfigFileUsed()), "disk_bloom_*"), []byte(DiskBloomSalt))
-	if err != nil {
-		log.Fatal("%v", err)
+	var ctx context.Context
+	switch conf.John.Protocol {
+	case string(model.ProtocolShadowsocks):
+		bloom, err := disk_bloom.NewBloom(filepath.Join(filepath.Dir(v.ConfigFileUsed()), "disk_bloom_*"), []byte(DiskBloomSalt))
+		if err != nil {
+			log.Fatal("%v", err)
+		}
+		ctx = context.WithValue(context.Background(), "bloom", bloom)
+	case string(model.ProtocolVMessTCP):
+		doubleCuckoo := antireplay.NewReplayFilter(120)
+		ctx = context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo)
 	}
 
 	// listen
-	s, err := server.NewServer(context.WithValue(context.Background(), "bloom", bloom),
-		"shadowsocks", conf.Lisa, server.Argument{
+	s, err := server.NewServer(ctx,
+		conf.John.Protocol, &conf.Lisa, server.Argument{
 			Ticket:    conf.John.Ticket,
 			Name:      conf.John.Name,
 			Hostnames: conf.John.Hostname,
@@ -76,6 +86,7 @@ func Run() {
 	if err != nil {
 		log.Fatal("%v", err)
 	}
+	log.Alert("Protocol: %v", conf.John.Protocol)
 	go func() {
 		err = s.Listen(conf.John.Listen)
 		close(done)

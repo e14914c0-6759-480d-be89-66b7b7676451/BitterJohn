@@ -22,6 +22,6 @@ var (
 	ProtectTime = map[PassageUse]time.Duration{
 		PassageUseUser:    0,
 		PassageUseRelay:   90 * time.Second,
-		PassageUseManager: 300 * time.Second,
+		PassageUseManager: 90 * time.Second,
 	}
 )

@@ -31,7 +31,7 @@ func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage
 	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
 
 	// we know the body length but we should read all
-	var req = pool.Get(int(reqMetadata.LenMsgBody))
+	var req = pool.Get(int(reqMetadata.LenMsgBody & 0xfffff))
 	defer pool.Put(req)
 	if _, err := io.ReadFull(crw, req); err != nil {
 		return err
@@ -39,12 +39,12 @@ func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage
 
 	var respMeta = Metadata{
 		Type: MetadataTypeMsg,
-		Cmd:  MetadataCmdResponse,
+		Cmd:  server.MetadataCmdResponse,
 	}
 	var resp []byte
 	var buf bytes.Buffer
 	switch reqMetadata.Cmd {
-	case MetadataCmdPing:
+	case server.MetadataCmdPing:
 		if !bytes.Equal(req, []byte("ping")) {
 			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(req)), strconv.Quote("ping"))
 		}
@@ -67,7 +67,7 @@ func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage
 		buf.Write(bAddr)
 
 		resp = bPingResp
-	case MetadataCmdSyncPassages:
+	case server.MetadataCmdSyncPassages:
 		var passages []model.Passage
 		if err := jsoniter.Unmarshal(req, &passages); err != nil {
 			return err
@@ -95,7 +95,7 @@ func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage
 		defer pool.Put(resp)
 		copy(resp, "OK")
 	default:
-		return fmt.Errorf("%w: unexpected metadata cmd type: %v", ErrFailAuth, reqMetadata.Cmd)
+		return fmt.Errorf("%w: unexpected metadata cmd type: %v", server.ErrFailAuth, reqMetadata.Cmd)
 	}
 
 	buf.Write(resp)
@@ -105,8 +105,8 @@ func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage
 		defer pool.Put(padding)
 		buf.Write(padding)
 	}
-	crw.Write(buf.Bytes())
-	return nil
+	_, err := crw.Write(buf.Bytes())
+	return err
 }
 
 func (s *Server) handleTCP(conn net.Conn) error {
@@ -200,7 +200,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 		return s.probeTCP(buf, data, passage)
 	})
 	if passage == nil {
-		return nil, ErrFailAuth
+		return nil, server.ErrFailAuth
 	}
 	// check bloom
 	if exist := s.bloom.Exist(data[:CiphersConf[passage.In.Method].SaltLen]); exist {

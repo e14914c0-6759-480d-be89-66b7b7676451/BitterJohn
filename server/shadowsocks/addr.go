@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/pkg/errors"
 	"io"
 	"net"
@@ -22,19 +23,11 @@ const (
 	MetadataTypeMsg
 )
 
-type MetadataCmd uint8
-
-const (
-	MetadataCmdPing MetadataCmd = iota
-	MetadataCmdSyncPassages
-	MetadataCmdResponse
-)
-
 type Metadata struct {
 	Type       MetadataType
 	Hostname   string
 	Port       uint16
-	Cmd        MetadataCmd
+	Cmd        server.MetadataCmd
 	LenMsgBody uint32
 }
 
@@ -89,7 +82,7 @@ func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
 		meta.Port = binary.BigEndian.Uint16(bytesMetadata[2+lenDN:])
 		return meta, nil
 	case MetadataTypeMsg:
-		meta.Cmd = MetadataCmd(bytesMetadata[1])
+		meta.Cmd = server.MetadataCmd(bytesMetadata[1])
 		meta.LenMsgBody = binary.BigEndian.Uint32(bytesMetadata[2:])
 		return meta, nil
 	default:

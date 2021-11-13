@@ -7,7 +7,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	"golang.org/x/net/dns/dnsmessage"
 	"io"
 	"net"
 	"strconv"
@@ -63,11 +62,7 @@ func selectTimeout(packet []byte) time.Duration {
 		return server.DefaultNatTimeout
 	}
 	packet = packet[al:]
-	var dMessage dnsmessage.Message
-	if err := dMessage.Unpack(packet); err != nil {
-		return server.DefaultNatTimeout
-	}
-	return server.DnsQueryTimeout
+	return server.SelectTimeout(packet)
 }
 
 // GetOrBuildUCPConn get a UDP conn from the mapping.
@@ -219,7 +214,7 @@ func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (pas
 		return probeUDP(buf, data, passage)
 	})
 	if passage == nil {
-		return nil, nil, ErrFailAuth
+		return nil, nil, server.ErrFailAuth
 	}
 	// check bloom
 	if exist := s.bloom.ExistOrAdd(data[:CiphersConf[passage.In.Method].SaltLen]); exist {

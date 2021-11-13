@@ -26,7 +26,6 @@ const (
 )
 
 var (
-	ErrFailAuth       = fmt.Errorf("fail to authenticate")
 	ErrFailInitCihper = fmt.Errorf("fail to initiate cipher")
 )
 
@@ -130,7 +129,7 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 	}
 	c.mutex.Unlock()
 	// Chunk
-	chunk, err := c.readChunk()
+	chunk, err := c.readChunkFromPool()
 	if err != nil {
 		return 0, err
 	}
@@ -148,7 +147,7 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 	return n, nil
 }
 
-func (c *TCPConn) readChunk() ([]byte, error) {
+func (c *TCPConn) readChunkFromPool() ([]byte, error) {
 	bufLen := pool.Get(2 + c.cipherConf.TagLen)
 	defer pool.Put(bufLen)
 	if _, err := io.ReadFull(c.Conn, bufLen); err != nil {
@@ -156,8 +155,8 @@ func (c *TCPConn) readChunk() ([]byte, error) {
 	}
 	bLenPayload, err := c.cipherRead.Open(bufLen[:0], c.nonceRead, bufLen, nil)
 	if err != nil {
-		log.Warn("%v: %v", ErrFailAuth, err)
-		return nil, ErrFailAuth
+		log.Warn("%v: %v", server.ErrFailAuth, err)
+		return nil, server.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
 	lenPayload := binary.BigEndian.Uint16(bLenPayload)
@@ -167,8 +166,8 @@ func (c *TCPConn) readChunk() ([]byte, error) {
 	}
 	payload, err := c.cipherRead.Open(bufPayload[:0], c.nonceRead, bufPayload, nil)
 	if err != nil {
-		log.Warn("%v: %v", ErrFailAuth, err)
-		return nil, ErrFailAuth
+		log.Warn("%v: %v", server.ErrFailAuth, err)
+		return nil, server.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
 	return payload, nil
@@ -349,12 +348,12 @@ func (c *TCPConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error
 	if err != nil {
 		return nil, err
 	}
-	if respMeta.Type != MetadataTypeMsg || respMeta.Cmd != MetadataCmdResponse {
-		return nil, fmt.Errorf("%w: unexpected metadata type %v or cmd %v", ErrFailAuth, respMeta.Type, respMeta.Cmd)
+	if respMeta.Type != MetadataTypeMsg || respMeta.Cmd != server.MetadataCmdResponse {
+		return nil, fmt.Errorf("%w: unexpected metadata type %v or cmd %v", server.ErrFailAuth, respMeta.Type, respMeta.Cmd)
 	}
 	resp = make([]byte, int(respMeta.LenMsgBody))
 	if _, err := io.ReadFull(c, resp); err != nil {
-		return nil, fmt.Errorf("%w: response body length is shorter than it should be", ErrFailAuth)
+		return nil, fmt.Errorf("%w: response body length is shorter than it should be", server.ErrFailAuth)
 	}
 	return resp, nil
 }

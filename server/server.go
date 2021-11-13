@@ -11,6 +11,20 @@ import (
 
 const LostThreshold = 5 * time.Minute
 
+var (
+	ErrFailAuth     = fmt.Errorf("fail to authenticate")
+	ErrPassageAbuse = fmt.Errorf("passage abuse")
+	ErrReplayAttack = fmt.Errorf("replay attack")
+)
+
+type MetadataCmd uint8
+
+const (
+	MetadataCmdPing MetadataCmd = iota
+	MetadataCmdSyncPassages
+	MetadataCmdResponse
+)
+
 type Argument struct {
 	Ticket string
 
@@ -18,7 +32,7 @@ type Argument struct {
 	Hostnames string
 	Port      int
 
-	NoRelay bool
+	NoRelay  bool
 }
 
 type Server interface {
@@ -30,7 +44,7 @@ type Server interface {
 	io.Closer
 }
 
-type Creator func(valueCtx context.Context, sweetLisaHost config.Lisa, arg Argument) (Server, error)
+type Creator func(valueCtx context.Context, sweetLisaHost *config.Lisa, arg Argument) (Server, error)
 
 var Mapper = make(map[string]Creator)
 
@@ -38,7 +52,7 @@ func Register(name string, c Creator) {
 	Mapper[name] = c
 }
 
-func NewServer(valueCtx context.Context, protocol string, sweetLisaHost config.Lisa, arg Argument) (Server, error) {
+func NewServer(valueCtx context.Context, protocol string, sweetLisaHost *config.Lisa, arg Argument) (Server, error) {
 	creator, ok := Mapper[protocol]
 	if !ok {
 		return nil, fmt.Errorf("no server creator registered for %v", strconv.Quote(protocol))

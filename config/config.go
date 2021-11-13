@@ -6,8 +6,9 @@ type Lisa struct {
 }
 
 type John struct {
-	Listen string `json:"listen,omitempty" default:"0.0.0.0:8880" desc:"Address to listen on"`
-	Log    Log    `json:"log,omitempty"`
+	Listen   string `json:"listen,omitempty" default:"0.0.0.0:8880" desc:"Address to listen on"`
+	Log      Log    `json:"log,omitempty"`
+	Protocol string `json:"protocol,omitempty" default:"vmess"`
 
 	Name     string `json:"name" required:"" desc:"Server name to register"`
 	Hostname string `json:"hostname" required:"" desc:"Server hostnames for users to connect (split by \",\")"`
