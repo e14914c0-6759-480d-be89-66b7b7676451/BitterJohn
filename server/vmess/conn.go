@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/v2fly/v2ray-core/v4/common/crypto"
 	"github.com/v2fly/v2ray-core/v4/proxy/vmess/encoding"
