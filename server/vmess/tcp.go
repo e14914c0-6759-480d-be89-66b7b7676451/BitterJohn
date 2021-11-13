@@ -93,7 +93,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 		}
 		if err = server.RelayTCP(lConn, rConn); err != nil {
 			var netErr net.Error
-			if errors.As(err, &netErr) && netErr.Timeout() {
+			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
 				return nil // ignore i/o timeout
 			}
 			return fmt.Errorf("relay error: %w", err)
@@ -111,7 +111,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 		}
 		if err = relayUoT(rConn.(*net.UDPConn), rConn.RemoteAddr(), lConn); err != nil {
 			var netErr net.Error
-			if errors.As(err, &netErr) && netErr.Timeout() {
+			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
 				return nil // ignore i/o timeout
 			}
 			return fmt.Errorf("relay error: %w", err)
