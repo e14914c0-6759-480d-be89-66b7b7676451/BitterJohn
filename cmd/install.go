@@ -253,7 +253,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 
 	var noRelay bool
 	prompt = &promptui.Prompt{
-		Label:     "This machine is an Endpoint Server and no need for relay (like IPLC)?",
+		Label:     "This machine does not need relays.",
 		IsConfirm: true,
 	}
 	_, err = prompt.Run()
