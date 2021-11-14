@@ -280,7 +280,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		}
 		resetDay = common.ShouldParseUint8(strDay)
 		prompt = &promptui.Prompt{
-			Label:     "UplinkLimitGiB/DownlinkLimitGiB/TotalLimitGiB (example: 0/0/480, zero means no limit)",
+			Label:     "UplinkLimitGiB/DownlinkLimitGiB/TotalLimitGiB (example: 980/0/0, zero means no limit)",
 			Default:   "0/0/0",
 			AllowEdit: true,
 			Validate:  limitValidator,
