@@ -24,8 +24,8 @@ const (
 )
 
 type Metadata struct {
-	Type       MetadataType
-	Hostname   string
+	Type     MetadataType
+	Hostname string
 	Port       uint16
 	Cmd        server.MetadataCmd
 	LenMsgBody uint32

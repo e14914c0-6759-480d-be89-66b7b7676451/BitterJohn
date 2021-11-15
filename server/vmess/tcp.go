@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
@@ -34,14 +35,11 @@ func (s *Server) handleConn(conn net.Conn) error {
 		io.Copy(io.Discard, conn)
 		return err
 	}
-
-	metadata := Metadata{IsClient: false}
-	copy(metadata.authedCmdKey[:], passage.inCmdKey)
-	copy(metadata.authedEAuthID[:], eAuthID)
+	metadata := vmess.NewServerMetadata(passage.inCmdKey, eAuthID)
 	pool.Put(eAuthID)
 	// handle connection
 	var target string
-	lConn, err := NewConn(conn, metadata, passage.inCmdKey)
+	lConn, err := vmess.NewConn(conn, *metadata, passage.inCmdKey)
 	if err != nil {
 		return err
 	}
@@ -52,7 +50,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 		return err
 	}
 	targetMetadata := lConn.Metadata()
-	if targetMetadata.Type == MetadataTypeMsg {
+	if targetMetadata.Type == vmess.MetadataTypeMsg {
 		return s.handleMsg(lConn, &targetMetadata, passage)
 	}
 	if passage.Out == nil {
@@ -68,7 +66,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 
 	// Dial and relay
 	switch targetMetadata.InsCmd {
-	case InstructionCmdTCP:
+	case vmess.InstructionCmdTCP:
 		rConn, err := server.DefaultLimitedDialer.Dial("tcp", target)
 		if err != nil {
 			var netErr net.Error
@@ -82,9 +80,9 @@ func (s *Server) handleConn(conn net.Conn) error {
 		if passage.Out != nil {
 			switch passage.Out.Protocol {
 			case model.ProtocolVMessTCP:
-				targetMetadata.Cipher = CipherAES128GCM
+				targetMetadata.Cipher = vmess.CipherAES128GCM
 				targetMetadata.IsClient = true
-				rConn, err = NewConn(rConn, targetMetadata, passage.outCmdKey)
+				rConn, err = vmess.NewConn(rConn, targetMetadata, passage.outCmdKey)
 				if err != nil {
 					return err
 				}
@@ -98,7 +96,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 			}
 			return fmt.Errorf("relay error: %w", err)
 		}
-	case InstructionCmdUDP:
+	case vmess.InstructionCmdUDP:
 		// udp
 		// symmetric nat
 		rConn, err := server.DefaultLimitedDialer.Dial("udp", target)
@@ -133,7 +131,7 @@ func (s *Server) authFromPool(conn net.Conn) (passage *Passage, eAuthID []byte, 
 	copy(passages, s.passages)
 	s.mutex.Unlock()
 	for i := range passages {
-		if err := AuthEAuthID(passages[i].inEAuthIDBlock, eAuthID, s.doubleCuckoo, s.startTimestamp); errors.Is(err, server.ErrReplayAttack) || errors.Is(err, server.ErrFailAuth) {
+		if err := vmess.AuthEAuthID(passages[i].inEAuthIDBlock, eAuthID, s.doubleCuckoo, s.startTimestamp); errors.Is(err, server.ErrReplayAttack) || errors.Is(err, server.ErrFailAuth) {
 			pool.Put(eAuthID)
 			return nil, nil, err
 		} else if err == nil {
@@ -156,11 +154,11 @@ func (s *Server) ContentionCheck(thisIP net.IP, passage *Passage) (err error) {
 	return nil
 }
 
-func (s *Server) handleMsg(conn *Conn, reqMetadata *Metadata, passage *Passage) error {
+func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passage *Passage) error {
 	if !passage.Manager {
 		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
 	}
-	if reqMetadata.Type != MetadataTypeMsg {
+	if reqMetadata.Type != vmess.MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
 	}
 	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
@@ -229,9 +227,9 @@ func (s *Server) handleMsg(conn *Conn, reqMetadata *Metadata, passage *Passage) 
 	return err
 }
 
-func relayConnToUDP(dst *net.UDPConn, src *Conn, timeout time.Duration) (err error) {
+func relayConnToUDP(dst *net.UDPConn, src *vmess.Conn, timeout time.Duration) (err error) {
 	var n int
-	buf := pool.Get(MaxChunkSize)
+	buf := pool.Get(vmess.MaxChunkSize)
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
@@ -247,7 +245,7 @@ func relayConnToUDP(dst *net.UDPConn, src *Conn, timeout time.Duration) (err err
 	}
 }
 
-func relayUoT(rConn *net.UDPConn, raddr net.Addr, lConn *Conn) (err error) {
+func relayUoT(rConn *net.UDPConn, raddr net.Addr, lConn *vmess.Conn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
 		e := relayConnToUDP(rConn, lConn, server.DefaultNatTimeout)

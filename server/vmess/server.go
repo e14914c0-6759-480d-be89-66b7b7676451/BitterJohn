@@ -7,6 +7,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
@@ -33,11 +34,11 @@ type Server struct {
 	passageContentionCache *server.ContentionCache
 
 	startTimestamp int64
-	doubleCuckoo   *ReplayFilter
+	doubleCuckoo   *vmess.ReplayFilter
 }
 
 func New(valueCtx context.Context, sweetLisaHost *config.Lisa, arg server.Argument) (server.Server, error) {
-	doubleCuckoo := valueCtx.Value("doubleCuckoo").(*ReplayFilter)
+	doubleCuckoo := valueCtx.Value("doubleCuckoo").(*vmess.ReplayFilter)
 	s := &Server{
 		doubleCuckoo:           doubleCuckoo,
 		passages:               nil,
@@ -121,15 +122,15 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 			log.Warn("LocalizePassages: invalid uuid: %v", psgs[i].In.Password)
 			id = uuid.New()
 		}
-		psgs[i].inCmdKey = NewID(id).CmdKey()
-		psgs[i].inEAuthIDBlock, _ = aes.NewCipher(KDF(psgs[i].inCmdKey, []byte(KDFSaltConstAuthIDEncryptionKey))[:16])
+		psgs[i].inCmdKey = vmess.NewID(id).CmdKey()
+		psgs[i].inEAuthIDBlock, _ = aes.NewCipher(vmess.KDF(psgs[i].inCmdKey, []byte(vmess.KDFSaltConstAuthIDEncryptionKey))[:16])
 		if psg.Out != nil && psg.Out.Protocol == model.ProtocolVMessTCP {
 			id, err := uuid.Parse(psgs[i].Out.Password)
 			if err != nil {
 				log.Warn("LocalizePassages: invalid uuid: %v", psgs[i].In.Password)
 				id = uuid.New()
 			}
-			psgs[i].outCmdKey = NewID(id).CmdKey()
+			psgs[i].outCmdKey = vmess.NewID(id).CmdKey()
 		}
 	}
 	return psgs, manager

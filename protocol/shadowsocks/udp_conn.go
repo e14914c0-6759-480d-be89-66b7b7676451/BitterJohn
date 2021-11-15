@@ -8,7 +8,7 @@ import (
 
 type UDPConn struct {
 	Establishing chan struct{}
-	timeout      time.Duration
+	Timeout      time.Duration
 	*net.UDPConn
 }
 
