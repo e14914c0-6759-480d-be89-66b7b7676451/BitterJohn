@@ -10,6 +10,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	disk_bloom "github.com/mzz2017/disk-bloom"
 	"golang.org/x/crypto/hkdf"
@@ -348,7 +349,7 @@ func (c *TCPConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error
 	if err != nil {
 		return nil, err
 	}
-	if respMeta.Type != MetadataTypeMsg || respMeta.Cmd != server.MetadataCmdResponse {
+	if respMeta.Type != MetadataTypeMsg || respMeta.Cmd != protocol.MetadataCmdResponse {
 		return nil, fmt.Errorf("%w: unexpected metadata type %v or cmd %v", server.ErrFailAuth, respMeta.Type, respMeta.Cmd)
 	}
 	resp = make([]byte, int(respMeta.LenMsgBody))

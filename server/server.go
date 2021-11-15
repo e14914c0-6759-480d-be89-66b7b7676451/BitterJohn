@@ -17,14 +17,6 @@ var (
 	ErrReplayAttack = fmt.Errorf("replay attack")
 )
 
-type MetadataCmd uint8
-
-const (
-	MetadataCmdPing MetadataCmd = iota
-	MetadataCmdSyncPassages
-	MetadataCmdResponse
-)
-
 type Argument struct {
 	Ticket string
 
