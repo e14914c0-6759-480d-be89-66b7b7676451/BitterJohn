@@ -2,13 +2,14 @@ package vmess
 
 import (
 	"context"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"testing"
 )
 
 func TestServer(t *testing.T) {
-	doubleCuckoo := NewReplayFilter(120)
+	doubleCuckoo := vmess.NewReplayFilter(120)
 	svr, err := New(context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo), nil, server.Argument{})
 	if err != nil {
 		t.Fatal(err)

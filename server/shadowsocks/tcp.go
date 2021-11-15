@@ -7,6 +7,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
@@ -22,11 +23,11 @@ const (
 	TCPBufferSize = 32 * 1024
 )
 
-func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage) error {
+func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Metadata, passage *Passage) error {
 	if !passage.Manager {
 		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
 	}
-	if reqMetadata.Type != MetadataTypeMsg {
+	if reqMetadata.Type != shadowsocks.MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
 	}
 	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
@@ -38,8 +39,8 @@ func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage
 		return err
 	}
 
-	var respMeta = Metadata{
-		Type: MetadataTypeMsg,
+	var respMeta = shadowsocks.Metadata{
+		Type: shadowsocks.MetadataTypeMsg,
 		Cmd:  server.MetadataCmdResponse,
 	}
 	var resp []byte
@@ -100,7 +101,7 @@ func (s *Server) handleMsg(crw *TCPConn, reqMetadata *Metadata, passage *Passage
 	}
 
 	buf.Write(resp)
-	lenPadding := CalcPaddingLen(passage.inMasterKey, resp[len(resp)-int(respMeta.LenMsgBody):], false)
+	lenPadding := shadowsocks.CalcPaddingLen(passage.inMasterKey, resp[len(resp)-int(respMeta.LenMsgBody):], false)
 	if lenPadding > 0 {
 		padding := pool.Get(lenPadding)
 		defer pool.Put(padding)
@@ -129,7 +130,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 
 	// handle connection
 	var target string
-	lConn, err := NewTCPConn(bConn, CiphersConf[passage.In.Method], passage.inMasterKey, s.bloom)
+	lConn, err := shadowsocks.NewTCPConn(bConn, shadowsocks.CiphersConf[passage.In.Method], passage.inMasterKey, s.bloom)
 	if err != nil {
 		bConn.Close()
 		return err
@@ -140,7 +141,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	if err != nil {
 		return err
 	}
-	if targetMetadata.Type == MetadataTypeMsg {
+	if targetMetadata.Type == shadowsocks.MetadataTypeMsg {
 		return s.handleMsg(lConn, targetMetadata, passage)
 	}
 	if passage.Out == nil {
@@ -167,7 +168,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	if passage.Out != nil {
 		switch passage.Out.Protocol {
 		case model.ProtocolShadowsocks:
-			rConn, err = NewTCPConn(rConn, CiphersConf[passage.Out.Method], passage.outMasterKey, nil)
+			rConn, err = shadowsocks.NewTCPConn(rConn, shadowsocks.CiphersConf[passage.Out.Method], passage.outMasterKey, nil)
 			if err != nil {
 				return err
 			}
@@ -205,7 +206,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 		return nil, server.ErrFailAuth
 	}
 	// check bloom
-	if exist := s.bloom.Exist(data[:CiphersConf[passage.In.Method].SaltLen]); exist {
+	if exist := s.bloom.Exist(data[:shadowsocks.CiphersConf[passage.In.Method].SaltLen]); exist {
 		return nil, server.ErrReplayAttack
 	}
 	return passage, nil
@@ -213,7 +214,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 
 func (s *Server) probeTCP(buf []byte, data []byte, passage Passage) ([]byte, bool) {
 	//[salt][encrypted payload length][length tag][encrypted payload][payload tag]
-	conf := CiphersConf[passage.In.Method]
+	conf := shadowsocks.CiphersConf[passage.In.Method]
 
 	salt := data[:conf.SaltLen]
 	cipherText := data[conf.SaltLen : conf.SaltLen+2+conf.TagLen]

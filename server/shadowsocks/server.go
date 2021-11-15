@@ -11,6 +11,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	gonanoid "github.com/matoous/go-nanoid"
@@ -37,7 +38,7 @@ type Server struct {
 	userContextPool *UserContextPool
 	listener        net.Listener
 	udpConn         *net.UDPConn
-	nm              *UDPConnMapping
+	nm              *shadowsocks.UDPConnMapping
 	// passageContentionCache log the last client IP of passages
 	passageContentionCache *server.ContentionCache
 
@@ -64,7 +65,7 @@ func New(valueCtx context.Context, sweetLisaHost *config.Lisa, arg server.Argume
 	bloom := valueCtx.Value("bloom").(*disk_bloom.FilterGroup)
 	s := &Server{
 		userContextPool:        (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
-		nm:                     NewUDPConnMapping(),
+		nm:                     shadowsocks.NewUDPConnMapping(),
 		sweetLisa:              sweetLisaHost,
 		closed:                 make(chan struct{}),
 		arg:                    arg,
@@ -273,10 +274,10 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 		if psgs[i].In.Method == "" {
 			psgs[i].In.Method = "chacha20-ietf-poly1305"
 		}
-		psgs[i].inMasterKey = EVPBytesToKey(psg.In.Password, CiphersConf[psg.In.Method].KeyLen)
+		psgs[i].inMasterKey = shadowsocks.EVPBytesToKey(psg.In.Password, shadowsocks.CiphersConf[psg.In.Method].KeyLen)
 		// TODO: other protocols
 		if psg.Out != nil && psg.Out.Protocol == model.ProtocolShadowsocks {
-			psgs[i].outMasterKey = EVPBytesToKey(psg.Out.Password, CiphersConf[psg.Out.Method].KeyLen)
+			psgs[i].outMasterKey = shadowsocks.EVPBytesToKey(psg.Out.Password, shadowsocks.CiphersConf[psg.Out.Method].KeyLen)
 		}
 	}
 	return psgs, manager
