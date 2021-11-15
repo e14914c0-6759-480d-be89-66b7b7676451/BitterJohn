@@ -3,7 +3,7 @@ package vmess
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/pkg/errors"
 	"net"
 )
@@ -33,7 +33,7 @@ type Metadata struct {
 	Type     MetadataType
 	Hostname string
 	Port     uint16
-	Cmd      server.MetadataCmd
+	Cmd      protocol.MetadataCmd
 	InsCmd   InstructionCmd
 	Cipher   Cipher
 
@@ -101,7 +101,7 @@ func (m *Metadata) CompleteFromInstructionData(instructionData []byte) (err erro
 	case MetadataTypeDomain:
 		m.Hostname = string(instructionData[42 : 42+instructionData[41]])
 	case MetadataTypeMsg:
-		m.Cmd = server.MetadataCmd(instructionData[41])
+		m.Cmd = protocol.MetadataCmd(instructionData[41])
 	default:
 		return fmt.Errorf("NewMetadata: %w: invalid type: %v", ErrInvalidMetadata, m.Type)
 	}

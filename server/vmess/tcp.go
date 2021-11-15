@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
@@ -177,7 +178,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 
 	var resp []byte
 	switch reqMetadata.Cmd {
-	case server.MetadataCmdPing:
+	case protocol.MetadataCmdPing:
 		if !bytes.Equal(buf, []byte("ping")) {
 			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(buf)), strconv.Quote("ping"))
 		}
@@ -194,7 +195,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 			return err
 		}
 		resp = bPingResp
-	case server.MetadataCmdSyncPassages:
+	case protocol.MetadataCmdSyncPassages:
 		var passages []model.Passage
 		if err := jsoniter.Unmarshal(buf, &passages); err != nil {
 			return err

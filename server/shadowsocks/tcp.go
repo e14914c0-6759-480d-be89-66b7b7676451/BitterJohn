@@ -7,6 +7,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
@@ -41,12 +42,12 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 
 	var respMeta = shadowsocks.Metadata{
 		Type: shadowsocks.MetadataTypeMsg,
-		Cmd:  server.MetadataCmdResponse,
+		Cmd:  protocol.MetadataCmdResponse,
 	}
 	var resp []byte
 	var buf bytes.Buffer
 	switch reqMetadata.Cmd {
-	case server.MetadataCmdPing:
+	case protocol.MetadataCmdPing:
 		if !bytes.Equal(req, []byte("ping")) {
 			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(req)), strconv.Quote("ping"))
 		}
@@ -69,7 +70,7 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 		buf.Write(bAddr)
 
 		resp = bPingResp
-	case server.MetadataCmdSyncPassages:
+	case protocol.MetadataCmdSyncPassages:
 		var passages []model.Passage
 		if err := jsoniter.Unmarshal(req, &passages); err != nil {
 			return err
