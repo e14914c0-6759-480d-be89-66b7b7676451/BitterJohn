@@ -1,6 +1,7 @@
 package vmess
 
 import (
+	"bytes"
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/binary"
@@ -98,13 +99,21 @@ func (c *Conn) sealFromPool(b []byte) (data []byte) {
 // writeStream splits mb into multiple FIXED size (payloadSize) chunks.
 // Then seal the chunks and write separately.
 // If the sum size of mb less than one payloadSize, seal and write it directly.
-func (c *Conn) writeStream(b []byte) (n int, err error) {
+func (c *Conn) writeStream(b []byte, preWrite []byte) (n int, err error) {
 	payloadSize, numChunks := c.chunks(len(b))
-	for i := 0; i < numChunks; i++ {
+	var start = 0
+	if preWrite != nil {
+		start++
 		data := c.sealFromPool(b[n:common.Min(n+payloadSize, len(b))])
-		_, err = c.Conn.Write(data)
-		if err != nil {
-			pool.Put(data)
+		defer pool.Put(data)
+		if _, err = c.Conn.Write(bytes.Join([][]byte{preWrite, data}, nil)); err != nil {
+			return 0, err
+		}
+		n += payloadSize
+	}
+	for i := start; i < numChunks; i++ {
+		data := c.sealFromPool(b[n:common.Min(n+payloadSize, len(b))])
+		if _, err = c.Conn.Write(data); err != nil {
 			return n, err
 		}
 		pool.Put(data)
@@ -117,12 +126,17 @@ func (c *Conn) writeStream(b []byte) (n int, err error) {
 }
 
 // writePacket simply seal every buffer of mb and write.
-func (c *Conn) writePacket(b []byte) (n int, err error) {
+func (c *Conn) writePacket(b []byte, preWrite []byte) (n int, err error) {
 	data := c.sealFromPool(b)
 	defer pool.Put(data)
-	_, err = c.Conn.Write(data)
-	if err != nil {
-		return 0, err
+	if preWrite != nil {
+		if _, err = c.Conn.Write(bytes.Join([][]byte{preWrite, data}, nil)); err != nil {
+			return 0, err
+		}
+	} else {
+		if _, err = c.Conn.Write(data); err != nil {
+			return 0, err
+		}
 	}
 	return len(b), nil
 }
@@ -153,6 +167,7 @@ func (c *Conn) InitContext(instructionData []byte) error {
 
 // Write writes data to the connection. Empty b should be written before closing the connection to indicate the terminal.
 func (c *Conn) Write(b []byte) (n int, err error) {
+	var encHeader []byte
 	c.initWrite.Do(func() {
 		if c.metadata.IsClient {
 			instructionData := ReqInstructionDataFromPool(c.metadata)
@@ -188,7 +203,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		} else {
 			header := RespHeaderFromPool(c.responseAuth)
 			defer pool.Put(header)
-			var encHeader []byte
 			encHeader, err = c.EncryptRespHeaderFromPool(header)
 			if err != nil {
 				return
@@ -210,7 +224,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 				c.writePaddingGenerator = PlainPaddingGenerator{}
 			}
 			c.writeNonceGenerator = GenerateChunkNonce(c.responseBodyIV[:], uint32(c.writeBodyCipher.NonceSize()))
-			_, err = c.Conn.Write(encHeader)
 		}
 	})
 	if err != nil {
@@ -224,9 +237,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	}
 	switch c.metadata.InsCmd {
 	case InstructionCmdTCP:
-		return c.writeStream(b)
+		return c.writeStream(b, encHeader)
 	case InstructionCmdUDP:
-		return c.writePacket(b)
+		return c.writePacket(b, encHeader)
 	default:
 		return 0, fmt.Errorf("unsupported network (instruction cmd): %v", c.metadata.InsCmd)
 	}
@@ -235,9 +248,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 func (c *Conn) Read(b []byte) (n int, err error) {
 	c.initRead.Do(func() {
 		if c.metadata.IsClient {
-			buf := pool.Get(18) // 2+16
-			defer pool.Put(buf)
-			if _, err = io.ReadFull(c.Conn, buf); err != nil {
+			bufSize := pool.Get(18) // 2+16
+			defer pool.Put(bufSize)
+			if _, err = io.ReadFull(c.Conn, bufSize); err != nil {
 				err = fmt.Errorf("failed to read response header length: %w", err)
 				return
 			}
@@ -245,11 +258,11 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 			if ciph, err = NewAesGcm(KDF(c.responseBodyKey[:], []byte(KDFSaltConstAEADRespHeaderLenKey))[:16]); err != nil {
 				return
 			}
-			if _, err = ciph.Open(buf[:0], KDF(c.responseBodyIV[:], []byte(KDFSaltConstAEADRespHeaderLenIV))[:12], buf, nil); err != nil {
+			if _, err = ciph.Open(bufSize[:0], KDF(c.responseBodyIV[:], []byte(KDFSaltConstAEADRespHeaderLenIV))[:12], bufSize, nil); err != nil {
 				return
 			}
-			headerSize := binary.BigEndian.Uint16(buf[:2])
-			buf = pool.Get(int(headerSize) + 16)
+			headerSize := binary.BigEndian.Uint16(bufSize[:2])
+			buf := pool.Get(int(headerSize) + 16)
 			defer pool.Put(buf)
 			if _, err = io.ReadFull(c.Conn, buf); err != nil {
 				err = fmt.Errorf("failed to read response header: %w", err)
@@ -424,6 +437,7 @@ func (c *Conn) EncryptRespHeaderFromPool(header []byte) (b []byte, err error) {
 
 	ciph, err := NewAesGcm(KDF(c.responseBodyKey[:], []byte(KDFSaltConstAEADRespHeaderLenKey))[:16])
 	if err != nil {
+		pool.Put(buf)
 		return
 	}
 	binary.BigEndian.PutUint16(buf, uint16(len(header)))
@@ -431,6 +445,7 @@ func (c *Conn) EncryptRespHeaderFromPool(header []byte) (b []byte, err error) {
 
 	ciph, err = NewAesGcm(KDF(c.responseBodyKey[:], []byte(KDFSaltConstAEADRespHeaderPayloadKey))[:16])
 	if err != nil {
+		pool.Put(buf)
 		return
 	}
 	ciph.Seal(buf[18:18], KDF(c.responseBodyIV[:], []byte(KDFSaltConstAEADRespHeaderPayloadIV))[:12], header, nil)

@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
@@ -181,6 +182,7 @@ func EncryptReqHeaderFromPool(instruction []byte, cmdKey []byte) ([]byte, error)
 
 	gcm, err := NewAesGcm(KDF(cmdKey, []byte(KDFSaltConstVMessHeaderPayloadLengthAEADKey), eAuthID, connectionNonce)[:16])
 	if err != nil {
+		pool.Put(buf)
 		return nil, err
 	}
 	binary.BigEndian.PutUint16(buf[16:18], uint16(len(instruction)))
@@ -188,6 +190,7 @@ func EncryptReqHeaderFromPool(instruction []byte, cmdKey []byte) ([]byte, error)
 
 	gcm, err = NewAesGcm(KDF(cmdKey, []byte(KDFSaltConstVMessHeaderPayloadAEADKey), eAuthID, connectionNonce)[:16])
 	if err != nil {
+		pool.Put(buf)
 		return nil, err
 	}
 	copy(buf[42:], instruction) // 16+2+16+8

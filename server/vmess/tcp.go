@@ -18,10 +18,6 @@ import (
 	"time"
 )
 
-const (
-	TCPBufferSize = 32 * 1024
-)
-
 func (s *Server) handleConn(conn net.Conn) error {
 	defer conn.Close()
 	passage, eAuthID, err := s.authFromPool(conn)
@@ -125,10 +121,11 @@ func (s *Server) authFromPool(conn net.Conn) (passage *Passage, eAuthID []byte, 
 	eAuthID = pool.Get(16)
 	_, err = io.ReadFull(conn, eAuthID)
 	if err != nil {
+		pool.Put(eAuthID)
 		return nil, nil, err
 	}
-	var passages = make([]Passage, len(s.passages))
 	s.mutex.Lock()
+	var passages = make([]Passage, len(s.passages))
 	copy(passages, s.passages)
 	s.mutex.Unlock()
 	for i := range passages {
@@ -140,6 +137,7 @@ func (s *Server) authFromPool(conn net.Conn) (passage *Passage, eAuthID []byte, 
 		}
 	}
 	pool.Put(eAuthID)
+	log.Warn("not found")
 	return nil, nil, fmt.Errorf("%w: not found", server.ErrFailAuth)
 }
 
@@ -170,17 +168,17 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	if _, err := io.ReadFull(conn, bufLen); err != nil {
 		return err
 	}
-	buf := pool.Get(int(binary.BigEndian.Uint32(bufLen) & 0xfffff))
-	defer pool.Put(buf)
-	if _, err := io.ReadFull(conn, buf); err != nil {
+	respBody := pool.Get(int(binary.BigEndian.Uint32(bufLen) & 0xfffff))
+	defer pool.Put(respBody)
+	if _, err := io.ReadFull(conn, respBody); err != nil {
 		return err
 	}
 
 	var resp []byte
 	switch reqMetadata.Cmd {
 	case protocol.MetadataCmdPing:
-		if !bytes.Equal(buf, []byte("ping")) {
-			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(buf)), strconv.Quote("ping"))
+		if !bytes.Equal(respBody, []byte("ping")) {
+			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(respBody)), strconv.Quote("ping"))
 		}
 		log.Trace("Received a ping message")
 		s.lastAlive = time.Now()
@@ -197,7 +195,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 		resp = bPingResp
 	case protocol.MetadataCmdSyncPassages:
 		var passages []model.Passage
-		if err := jsoniter.Unmarshal(buf, &passages); err != nil {
+		if err := jsoniter.Unmarshal(respBody, &passages); err != nil {
 			return err
 		}
 		var serverPassages []server.Passage
@@ -220,7 +218,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	default:
 		return fmt.Errorf("%w: unexpected metadata cmd type: %v", server.ErrFailAuth, reqMetadata.Cmd)
 	}
-	buf = pool.Get(len(resp) + 4)
+	buf := pool.Get(len(resp) + 4)
 	defer pool.Put(buf)
 	binary.BigEndian.PutUint32(buf, uint32(len(resp)))
 	copy(buf[4:], resp)
