@@ -40,7 +40,7 @@ func RelayUDP(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.D
 	}
 }
 
-func RelayUDPToConn(dst net.Conn, src *net.UDPConn, timeout time.Duration) (err error) {
+func RelayUDPToConn(dst net.Conn, src net.PacketConn, timeout time.Duration) (err error) {
 	var n int
 	buf := pool.Get(ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)

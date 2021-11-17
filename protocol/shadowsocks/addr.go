@@ -10,24 +10,38 @@ import (
 	"net"
 )
 
-type MetadataType int
+func ParseMetadataType(t byte) protocol.MetadataType {
+	switch t {
+	case 1:
+		return protocol.MetadataTypeIPv4
+	case 3:
+		return protocol.MetadataTypeDomain
+	case 4:
+		return protocol.MetadataTypeIPv6
+	case 5:
+		return protocol.MetadataTypeMsg
+	default:
+		return protocol.MetadataTypeInvalid
+	}
+}
 
-const (
-	MetadataTypeReserved0 MetadataType = iota
-	MetadataTypeIPv4
-	MetadataTypeReserved2
-	MetadataTypeDomain
-	MetadataTypeIPv6
-	// MetadataTypeMsg indicates it's a message from SweetLisa.
-	// [MetadataType(1)][MetadataCmd(1)]
-	MetadataTypeMsg
-)
+func MetadataTypeToByte(typ protocol.MetadataType) byte {
+	switch typ {
+	case protocol.MetadataTypeIPv4:
+		return 1
+	case protocol.MetadataTypeDomain:
+		return 3
+	case protocol.MetadataTypeIPv6:
+		return 4
+	case protocol.MetadataTypeMsg:
+		return 5
+	default:
+		return 0
+	}
+}
 
 type Metadata struct {
-	Type     MetadataType
-	Hostname string
-	Port       uint16
-	Cmd        protocol.MetadataCmd
+	protocol.Metadata
 	LenMsgBody uint32
 }
 
@@ -39,15 +53,15 @@ func BytesSizeForMetadata(firstTwoByte []byte) (int, error) {
 	if len(firstTwoByte) < 2 {
 		return 0, fmt.Errorf("%w: too short", ErrInvalidMetadata)
 	}
-	switch MetadataType(firstTwoByte[0]) {
-	case MetadataTypeIPv4:
+	switch ParseMetadataType(firstTwoByte[0]) {
+	case protocol.MetadataTypeIPv4:
 		return 1 + 4 + 2, nil
-	case MetadataTypeIPv6:
+	case protocol.MetadataTypeIPv6:
 		return 1 + 16 + 2, nil
-	case MetadataTypeDomain:
+	case protocol.MetadataTypeDomain:
 		lenDN := int(firstTwoByte[1])
 		return 1 + 1 + lenDN + 2, nil
-	case MetadataTypeMsg:
+	case protocol.MetadataTypeMsg:
 		return 1 + 1 + 4, nil
 	default:
 		return 0, fmt.Errorf("BytesSizeForMetadata: %w: invalid type: %v", ErrInvalidMetadata, firstTwoByte[0])
@@ -59,7 +73,7 @@ func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
 		return nil, io.ErrUnexpectedEOF
 	}
 	meta := new(Metadata)
-	meta.Type = MetadataType(bytesMetadata[0])
+	meta.Type = ParseMetadataType(bytesMetadata[0])
 	length, err := BytesSizeForMetadata(bytesMetadata)
 	if err != nil {
 		return nil, err
@@ -68,20 +82,20 @@ func NewMetadata(bytesMetadata []byte) (*Metadata, error) {
 		return nil, fmt.Errorf("%w: too short", ErrInvalidMetadata)
 	}
 	switch meta.Type {
-	case MetadataTypeIPv4:
+	case protocol.MetadataTypeIPv4:
 		meta.Hostname = net.IP(bytesMetadata[1:5]).String()
 		meta.Port = binary.BigEndian.Uint16(bytesMetadata[5:])
 		return meta, nil
-	case MetadataTypeIPv6:
+	case protocol.MetadataTypeIPv6:
 		meta.Hostname = net.IP(bytesMetadata[1:17]).String()
 		meta.Port = binary.BigEndian.Uint16(bytesMetadata[17:])
 		return meta, nil
-	case MetadataTypeDomain:
+	case protocol.MetadataTypeDomain:
 		lenDN := int(bytesMetadata[1])
 		meta.Hostname = string(bytesMetadata[2 : 2+lenDN])
 		meta.Port = binary.BigEndian.Uint16(bytesMetadata[2+lenDN:])
 		return meta, nil
-	case MetadataTypeMsg:
+	case protocol.MetadataTypeMsg:
 		meta.Cmd = protocol.MetadataCmd(bytesMetadata[1])
 		meta.LenMsgBody = binary.BigEndian.Uint32(bytesMetadata[2:])
 		return meta, nil
@@ -99,26 +113,26 @@ func (meta *Metadata) Bytes() (b []byte) {
 }
 func (meta *Metadata) BytesFromPool() (b []byte) {
 	switch meta.Type {
-	case MetadataTypeIPv4:
+	case protocol.MetadataTypeIPv4:
 		b = pool.Get(1 + 4 + 2)
 		copy(b[1:], net.ParseIP(meta.Hostname).To4()[:4])
 		binary.BigEndian.PutUint16(b[5:], meta.Port)
-	case MetadataTypeIPv6:
+	case protocol.MetadataTypeIPv6:
 		b = pool.Get(1 + 16 + 2)
 		copy(b[1:], net.ParseIP(meta.Hostname)[:16])
 		binary.BigEndian.PutUint16(b[17:], meta.Port)
-	case MetadataTypeDomain:
+	case protocol.MetadataTypeDomain:
 		hostname := []byte(meta.Hostname)
 		lenDN := len(hostname)
 		b = pool.Get(1 + 1 + lenDN + 2)
 		b[1] = uint8(lenDN)
 		copy(b[2:], hostname)
 		binary.BigEndian.PutUint16(b[2+lenDN:], meta.Port)
-	case MetadataTypeMsg:
+	case protocol.MetadataTypeMsg:
 		b = pool.Get(1 + 1 + 4)
 		b[1] = uint8(meta.Cmd)
 		binary.BigEndian.PutUint32(b[2:], meta.LenMsgBody)
 	}
-	b[0] = uint8(meta.Type)
+	b[0] = MetadataTypeToByte(meta.Type)
 	return b
 }

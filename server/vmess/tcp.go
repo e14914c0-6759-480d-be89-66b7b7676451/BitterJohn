@@ -47,7 +47,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 		return err
 	}
 	targetMetadata := lConn.Metadata()
-	if targetMetadata.Type == vmess.MetadataTypeMsg {
+	if targetMetadata.Type == protocol.MetadataTypeMsg {
 		return s.handleMsg(lConn, &targetMetadata, passage)
 	}
 	if passage.Out == nil {
@@ -62,9 +62,19 @@ func (s *Server) handleConn(conn net.Conn) error {
 	}
 
 	// Dial and relay
-	switch targetMetadata.InsCmd {
-	case vmess.InstructionCmdTCP:
-		rConn, err := server.DefaultLimitedDialer.Dial("tcp", target)
+	dialer := s.dialer
+	if passage.Out != nil {
+		targetMetadata.IsClient = true
+		targetMetadata.Cipher = passage.Out.Method
+		//targetMetadata.Network = "tcp" // should keep the origin Network
+		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, targetMetadata.Metadata, passage.Out.Password)
+		if err != nil {
+			return err
+		}
+	}
+	switch targetMetadata.Network {
+	case "tcp":
+		rConn, err := dialer.Dial("tcp", target)
 		if err != nil {
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
@@ -74,18 +84,6 @@ func (s *Server) handleConn(conn net.Conn) error {
 			return err
 		}
 		defer rConn.Close()
-		if passage.Out != nil {
-			switch passage.Out.Protocol {
-			case model.ProtocolVMessTCP:
-				targetMetadata.Cipher = vmess.CipherAES128GCM
-				targetMetadata.IsClient = true
-				rConn, err = vmess.NewConn(rConn, targetMetadata, passage.outCmdKey)
-				if err != nil {
-					return err
-				}
-				defer rConn.Close()
-			}
-		}
 		if err = server.RelayTCP(lConn, rConn); err != nil {
 			var netErr net.Error
 			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
@@ -93,10 +91,8 @@ func (s *Server) handleConn(conn net.Conn) error {
 			}
 			return fmt.Errorf("relay error: %w", err)
 		}
-	case vmess.InstructionCmdUDP:
-		// udp
-		// symmetric nat
-		rConn, err := server.DefaultLimitedDialer.Dial("udp", target)
+	case "udp":
+		rConn, err := dialer.Dial("udp", target)
 		if err != nil {
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
@@ -104,7 +100,8 @@ func (s *Server) handleConn(conn net.Conn) error {
 			}
 			return err
 		}
-		if err = relayUoT(rConn.(*net.UDPConn), rConn.RemoteAddr(), lConn); err != nil {
+		//log.Trace("rConn.RemoteAddr(): %v", rConn.RemoteAddr())
+		if err = relayUoT(rConn.(net.PacketConn), rConn.RemoteAddr(), lConn); err != nil {
 			var netErr net.Error
 			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
 				return nil // ignore i/o timeout
@@ -112,7 +109,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 			return fmt.Errorf("relay error: %w", err)
 		}
 	default:
-		return fmt.Errorf("unexpected instruction cmd: %v", targetMetadata.InsCmd)
+		return fmt.Errorf("unexpected instruction cmd: %v", targetMetadata.Network)
 	}
 	return nil
 }
@@ -142,6 +139,9 @@ func (s *Server) authFromPool(conn net.Conn) (passage *Passage, eAuthID []byte, 
 }
 
 func (s *Server) ContentionCheck(thisIP net.IP, passage *Passage) (err error) {
+	if s.passageContentionCache == nil {
+		return nil
+	}
 	contentionDuration := server.ProtectTime[passage.Use()]
 	if contentionDuration > 0 {
 		passageKey := passage.In.Argument.Hash()
@@ -157,7 +157,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	if !passage.Manager {
 		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
 	}
-	if reqMetadata.Type != vmess.MetadataTypeMsg {
+	if reqMetadata.Type != protocol.MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
 	}
 	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
@@ -226,7 +226,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	return err
 }
 
-func relayConnToUDP(dst *net.UDPConn, src *vmess.Conn, timeout time.Duration) (err error) {
+func relayConnToUDP(dst net.PacketConn, raddr net.Addr, src *vmess.Conn, timeout time.Duration) (err error) {
 	var n int
 	buf := pool.Get(vmess.MaxChunkSize)
 	defer pool.Put(buf)
@@ -237,17 +237,21 @@ func relayConnToUDP(dst *net.UDPConn, src *vmess.Conn, timeout time.Duration) (e
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-		_, err = dst.Write(buf[:n])
+		_, err = dst.WriteTo(buf[:n], raddr)
+		// WARNING: if the dst is an pre-connected conn, Write should be invoked here.
+		if errors.Is(err, net.ErrWriteToConnected) {
+			log.Error("relayConnToUDP: %v", err)
+		}
 		if err != nil {
 			return
 		}
 	}
 }
 
-func relayUoT(rConn *net.UDPConn, raddr net.Addr, lConn *vmess.Conn) (err error) {
+func relayUoT(rConn net.PacketConn, raddr net.Addr, lConn *vmess.Conn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
-		e := relayConnToUDP(rConn, lConn, server.DefaultNatTimeout)
+		e := relayConnToUDP(rConn, raddr, lConn, server.DefaultNatTimeout)
 		rConn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		eCh <- e
 	}()

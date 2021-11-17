@@ -13,13 +13,3 @@ type Passage struct {
 
 	inEAuthIDBlock cipher.Block
 }
-
-func (p *Passage) Use() (use server.PassageUse) {
-	if p.Manager {
-		return server.PassageUseManager
-	} else if p.In.From == "" {
-		return server.PassageUseUser
-	} else {
-		return server.PassageUseRelay
-	}
-}

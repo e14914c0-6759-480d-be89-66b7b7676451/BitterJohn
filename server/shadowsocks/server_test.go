@@ -1,9 +1,13 @@
 package shadowsocks
 
 import (
+	"context"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+	disk_bloom "github.com/mzz2017/disk-bloom"
+	"golang.org/x/net/proxy"
+	"hash/fnv"
 	"sort"
 	"strconv"
 	"testing"
@@ -107,5 +111,43 @@ func TestServer_AddPassages(t *testing.T) {
 				t.Fatal("test", strconv.Itoa(i)+":", st, "should be", states[i])
 			}
 		}
+	}
+}
+
+func TestServer(t *testing.T) {
+	bloom, err := disk_bloom.NewGroup("/tmp/bloom_*", disk_bloom.FsyncModeNo, 1e3, 1e-6, func(b []byte) (uint64, uint64) {
+		hx := fnv.New64()
+		hx.Write(b)
+		x := hx.Sum64()
+		hy := fnv.New64a()
+		hy.Write(b)
+		y := hy.Sum64()
+		return x, y
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svr, err := New(context.WithValue(context.Background(), "bloom", bloom), proxy.Direct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = svr.AddPassages([]server.Passage{{
+		Manager: false,
+		Passage: model.Passage{
+			In: model.In{
+				From: "",
+				Argument: model.Argument{
+					Protocol: "shadowsocks",
+					Password: "oKLW52IDIZKQ3QXHS434N",
+					Method:   "aes-128-gcm",
+				},
+			},
+			Out: nil,
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svr.Listen("localhost:18080"); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -2,12 +2,13 @@ package shadowsocks
 
 import (
 	"fmt"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"inet.af/netaddr"
 	"io"
 	"net"
 	"strconv"
@@ -27,29 +28,15 @@ func (s *Server) handleUDP(lAddr net.Addr, data []byte) (err error) {
 		return err
 	}
 
-	size, _ := shadowsocks.BytesSizeForMetadata(plainText)
-	var toWrite []byte
-	if passage.Out == nil {
-		// send packet to target
-		toWrite = plainText[size:]
-	} else {
-		// send encrypted packet to the next server
-		if toWrite, err = shadowsocks.EncryptUDPFromPool(shadowsocks.Key{
-			CipherConf: shadowsocks.CiphersConf[passage.Out.Method],
-			MasterKey:  passage.outMasterKey,
-		}, plainText); err != nil {
-			return err
-		}
-		defer pool.Put(toWrite)
-	}
 	targetAddr, err := net.ResolveUDPAddr("udp", target)
 	if err != nil {
 		return err
 	}
-	if common.IsPrivate(targetAddr.IP) {
-		return fmt.Errorf("%w: %v from %v", server.ErrDialPrivateAddress, targetAddr.String(), lAddr.String())
+	al, err := shadowsocks.BytesSizeForMetadata(plainText)
+	if err != nil {
+		return err
 	}
-	if _, err = rc.WriteToUDP(toWrite, targetAddr); err != nil {
+	if _, err = rc.WriteTo(plainText[al:], targetAddr); err != nil {
 		return fmt.Errorf("write error: %w", err)
 	}
 	return nil
@@ -67,9 +54,9 @@ func selectTimeout(packet []byte) time.Duration {
 }
 
 // GetOrBuildUCPConn get a UDP conn from the mapping.
-// plainText is from pool. Please MUST put it back.
-func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn, passage *Passage, plainText []byte, target string, err error) {
-	var conn *shadowsocks.UDPConn
+// plainText is from pool and starts with metadata. Please MUST put it back.
+func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc net.PacketConn, passage *Passage, plainText []byte, target string, err error) {
+	var conn *UDPConn
 	var ok bool
 
 	// get user's context (preference)
@@ -104,13 +91,24 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 
 		// dial
-		rc, err = net.ListenUDP("udp", nil)
+		dialer := s.dialer
+		if passage.Out != nil {
+			targetMetadata.IsClient = true
+			targetMetadata.Cipher = passage.Out.Method
+			targetMetadata.Network = "udp"
+			dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, targetMetadata.Metadata, passage.Out.Password)
+			if err != nil {
+				return nil, nil, nil, "", err
+			}
+		}
+		c, err := dialer.Dial("udp", target)
 		if err != nil {
 			s.nm.Lock()
 			s.nm.Remove(connIdent) // close channel to inform that establishment ends
 			s.nm.Unlock()
 			return nil, nil, nil, "", fmt.Errorf("GetOrBuildUCPConn dial error: %w", err)
 		}
+		rc = c.(net.PacketConn)
 		s.nm.Lock()
 		s.nm.Remove(connIdent) // close channel to inform that establishment ends
 		conn = s.nm.Insert(connIdent, rc)
@@ -118,7 +116,9 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		s.nm.Unlock()
 		// relay
 		go func() {
-			_ = s.relay(lAddr, rc, conn.Timeout, *passage)
+			if e := s.relay(lAddr, rc, conn.Timeout, *passage); e != nil {
+				log.Trace("shadowsocks.udp.relay: %v", e)
+			}
 			s.nm.Lock()
 			s.nm.Remove(connIdent)
 			s.nm.Unlock()
@@ -127,71 +127,71 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc *net.UDPConn
 		// such socket mapping exists; just verify or wait for its establishment
 		s.nm.Unlock()
 		<-conn.Establishing
-		if conn.UDPConn == nil {
+		if conn.PacketConn == nil {
 			// establishment ended and retrieve the result
 			return s.GetOrBuildUCPConn(lAddr, data)
 		} else {
 			// establishment succeeded
-			rc = conn.UDPConn
+			rc = conn.PacketConn
 		}
 	}
 	// countdown
-	_ = conn.UDPConn.SetReadDeadline(time.Now().Add(conn.Timeout))
+	_ = conn.PacketConn.SetReadDeadline(time.Now().Add(conn.Timeout))
 	return rc, passage, plainText, target, nil
 }
 
-func (s *Server) relay(laddr net.Addr, src *net.UDPConn, timeout time.Duration, passage Passage) (err error) {
+func (s *Server) relay(laddr net.Addr, rConn net.PacketConn, timeout time.Duration, passage Passage) (err error) {
 	var (
 		n           int
 		shadowBytes []byte
 	)
-	buf := pool.Get(BasicLen + ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
+	buf := pool.Get(BasicLen + ip_mtu_trie.MTUTrie.GetMTU(rConn.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)
-	var inKey, outKey shadowsocks.Key
+	var inKey shadowsocks.Key
 	inKey = shadowsocks.Key{
 		CipherConf: shadowsocks.CiphersConf[passage.In.Method],
 		MasterKey:  passage.inMasterKey,
 	}
-	if passage.Out != nil {
-		outKey = shadowsocks.Key{
-			CipherConf: shadowsocks.CiphersConf[passage.Out.Method],
-			MasterKey:  passage.outMasterKey,
-		}
-	}
 	var addr net.Addr
 	for {
-		_ = src.SetReadDeadline(time.Now().Add(timeout))
-		n, addr, err = src.ReadFrom(buf)
+		_ = rConn.SetReadDeadline(time.Now().Add(timeout))
+		n, addr, err = rConn.ReadFrom(buf)
 		if err != nil {
-			return
+			return fmt.Errorf("rConn.ReadFrom: %v", err)
 		}
 		_ = s.udpConn.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-		if passage.Out != nil {
-			plainText, err := shadowsocks.DecryptUDP(outKey, buf[:n])
-			if err != nil {
-				log.Warn("relay: DecryptUDP: %v", err)
-				continue
-			}
-			n = len(plainText)
-		} else {
-			sAddr := addr.(*net.UDPAddr)
-			var typ shadowsocks.MetadataType
-			if sAddr.IP.To4() != nil {
-				typ = shadowsocks.MetadataTypeIPv4
+		{
+			// pack addr
+			var sAddr *net.UDPAddr
+			if addr == nil {
+				//sAddr = rAddr
+				log.Warn("relay(shadowsocks.udp): addr == nil")
 			} else {
-				typ = shadowsocks.MetadataTypeIPv6
+				sAddr = addr.(*net.UDPAddr)
 			}
+
+			var typ protocol.MetadataType
+			if ip, _ := netaddr.FromStdIP(sAddr.IP); ip.Is4() {
+				typ = protocol.MetadataTypeIPv4
+			} else {
+				typ = protocol.MetadataTypeIPv6
+			}
+
 			target := shadowsocks.Metadata{
-				Type:     typ,
-				Hostname: sAddr.IP.String(),
-				Port:     uint16(sAddr.Port),
+				Metadata: protocol.Metadata{
+					Type:     typ,
+					Hostname: sAddr.IP.String(),
+					Port:     uint16(sAddr.Port),
+				},
 			}
+
 			b := target.BytesFromPool()
 			copy(buf[len(b):], buf[:n])
 			copy(buf, b)
 			n += len(b)
 			pool.Put(b)
 		}
+		// FIXME: here does not use shadowsocks.NewUDPConn but it is okay
 		shadowBytes, err = shadowsocks.EncryptUDPFromPool(inKey, buf[:n])
 		if err != nil {
 			log.Warn("relay: EncryptUDPFromPool: %v", err)

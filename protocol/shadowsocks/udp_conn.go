@@ -1,65 +1,121 @@
 package shadowsocks
 
 import (
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	disk_bloom "github.com/mzz2017/disk-bloom"
+	"inet.af/netaddr"
 	"net"
-	"sync"
+	"strconv"
 	"time"
 )
 
 type UDPConn struct {
-	Establishing chan struct{}
-	Timeout      time.Duration
-	*net.UDPConn
+	Timeout time.Duration
+	net.PacketConn
+
+	metadata   protocol.Metadata
+	cipherConf CipherConf
+	masterKey  []byte
+	bloom      *disk_bloom.FilterGroup
 }
 
-func NewUDPConn(conn *net.UDPConn) *UDPConn {
+func NewUDPConn(conn net.PacketConn, metadata protocol.Metadata, masterKey []byte, bloom *disk_bloom.FilterGroup) (*UDPConn, error) {
+	key := pool.Get(len(masterKey))
+	copy(key, masterKey)
 	c := &UDPConn{
-		UDPConn:      conn,
-		Establishing: make(chan struct{}),
+		PacketConn: conn,
+		metadata:   metadata,
+		cipherConf: CiphersConf[metadata.Cipher],
+		masterKey:  key,
+		bloom:      bloom,
 	}
-	if c.UDPConn != nil {
-		close(c.Establishing)
-	}
-	return c
+	return c, nil
 }
 
-type UDPConnMapping struct {
-	nm map[string]*UDPConn
-	sync.Mutex
+func (c *UDPConn) Close() error {
+	pool.Put(c.masterKey)
+	return c.PacketConn.Close()
 }
 
-func NewUDPConnMapping() *UDPConnMapping {
-	m := &UDPConnMapping{
-		nm: make(map[string]*UDPConn),
-	}
-	return m
-}
-
-func (m *UDPConnMapping) Get(key string) (conn *UDPConn, ok bool) {
-	v, ok := m.nm[key]
-	if ok {
-		conn = v
-	}
+func (c *UDPConn) Read(b []byte) (n int, err error) {
+	n, _, err = c.ReadFrom(b)
 	return
 }
 
-// pass val=nil for stating it is establishing
-func (m *UDPConnMapping) Insert(key string, val *net.UDPConn) *UDPConn {
-	c := NewUDPConn(val)
-	m.nm[key] = c
-	return c
+func (c *UDPConn) Write(b []byte) (n int, err error) {
+	return 0, net.InvalidAddrError("")
 }
 
-func (m *UDPConnMapping) Remove(key string) {
-	v, ok := m.nm[key]
-	if !ok {
+func (c *UDPConn) RemoteAddr() net.Addr {
+	return nil
+}
+
+func (c *UDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	metadata := Metadata{
+		Metadata: c.metadata,
+	}
+	prefix := metadata.BytesFromPool()
+	defer pool.Put(prefix)
+	chunk := pool.Get(len(prefix) + len(b))
+	defer pool.Put(chunk)
+	copy(chunk, prefix)
+	copy(chunk[len(prefix):], b)
+	toWrite, err := EncryptUDPFromPool(Key{
+		CipherConf: c.cipherConf,
+		MasterKey:  c.masterKey,
+	}, chunk)
+	if err != nil {
+		return 0, err
+	}
+	defer pool.Put(toWrite)
+	if c.bloom != nil {
+		c.bloom.ExistOrAdd(toWrite[:c.cipherConf.SaltLen])
+	}
+	return c.PacketConn.WriteTo(toWrite, addr)
+}
+
+func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
+	n, addr, err = c.PacketConn.ReadFrom(b)
+	if err != nil {
+		return 0, nil, err
+	}
+	enc := pool.Get(len(b))
+	defer pool.Put(enc)
+	copy(enc, b)
+	n, err = DecryptUDP(Key{
+		CipherConf: c.cipherConf,
+		MasterKey:  c.masterKey,
+	}, b[:n])
+	if err != nil {
 		return
 	}
-	select {
-	case <-v.Establishing:
-		_ = v.Close()
-	default:
-		close(v.Establishing)
+	if c.bloom != nil {
+		if exist := c.bloom.ExistOrAdd(enc[:c.cipherConf.SaltLen]); exist {
+			err = server.ErrReplayAttack
+			return
+		}
 	}
-	delete(m.nm, key)
+	// parse sAddr from metadata
+	sizeMetadata, err := BytesSizeForMetadata(b)
+	if err != nil {
+		return 0, nil, err
+	}
+	mdata, err := NewMetadata(b)
+	if err != nil {
+		return 0, nil, err
+	}
+	var typ protocol.MetadataType
+	switch typ {
+	case protocol.MetadataTypeIPv4, protocol.MetadataTypeIPv6:
+		ipport, err := netaddr.ParseIPPort(net.JoinHostPort(mdata.Hostname, strconv.Itoa(int(mdata.Port))))
+		if err != nil {
+			return 0, nil, err
+		}
+		addr = ipport.UDPAddr()
+	}
+	copy(b, b[sizeMetadata:])
+	n -= sizeMetadata
+	return n, addr, nil
 }

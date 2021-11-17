@@ -11,6 +11,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
+	"golang.org/x/net/proxy"
 	"net"
 	"strconv"
 	"sync"
@@ -18,12 +19,12 @@ import (
 )
 
 func init() {
-	server.Register("vmess", New)
+	server.Register("vmess", NewJohn)
 }
 
 type Server struct {
 	closed    chan struct{}
-	sweetLisa *config.Lisa
+	sweetLisa config.Lisa
 	arg       server.Argument
 	lastAlive time.Time
 
@@ -34,32 +35,40 @@ type Server struct {
 	passageContentionCache *server.ContentionCache
 
 	startTimestamp int64
-	doubleCuckoo   *vmess.ReplayFilter
+
+	doubleCuckoo *vmess.ReplayFilter
+	dialer       proxy.Dialer
 }
 
-func New(valueCtx context.Context, sweetLisaHost *config.Lisa, arg server.Argument) (server.Server, error) {
+func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
 	doubleCuckoo := valueCtx.Value("doubleCuckoo").(*vmess.ReplayFilter)
 	s := &Server{
-		doubleCuckoo:           doubleCuckoo,
-		passages:               nil,
-		passageContentionCache: server.NewContentionCache(),
-		startTimestamp:         time.Now().Unix(),
-		closed:                 make(chan struct{}),
-		sweetLisa:              sweetLisaHost,
-		arg:                    arg,
-	}
-	if s.sweetLisa != nil {
-		if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
-			return nil, err
-		}
-
-		// connect to SweetLisa and register
-		if err := s.register(); err != nil {
-			return nil, err
-		}
-		go s.registerBackground()
+		doubleCuckoo: doubleCuckoo,
+		dialer:       dialer,
+		closed:       make(chan struct{}),
 	}
 	return s, nil
+}
+
+func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+	s, err := New(valueCtx, dialer)
+	if err != nil {
+		return nil, err
+	}
+	john := s.(*Server)
+	john.sweetLisa = sweetLisaHost
+	john.arg = arg
+	john.passageContentionCache = server.NewContentionCache()
+	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
+		return nil, err
+	}
+
+	// connect to SweetLisa and register
+	if err := john.register(); err != nil {
+		return nil, err
+	}
+	go john.registerBackground()
+	return john, nil
 }
 
 func (s *Server) Listen(addr string) (err error) {
@@ -67,6 +76,7 @@ func (s *Server) Listen(addr string) (err error) {
 	if err != nil {
 		return err
 	}
+	s.startTimestamp = time.Now().Unix()
 	s.listener = lt
 	for {
 		conn, err := lt.Accept()

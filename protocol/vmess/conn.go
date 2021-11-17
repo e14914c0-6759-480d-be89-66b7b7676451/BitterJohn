@@ -9,8 +9,10 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 )
 
@@ -18,10 +20,11 @@ const MaxChunkSize = 2048
 
 type Conn struct {
 	net.Conn
-	initRead  sync.Once
-	initWrite sync.Once
-	metadata  Metadata
-	cmdKey    []byte
+	initRead      sync.Once
+	initWrite     sync.Once
+	metadata      Metadata
+	cmdKey        []byte
+	cachedRAddrIP *net.UDPAddr
 
 	NewAEAD func(key []byte) (cipher.AEAD, error)
 
@@ -150,13 +153,13 @@ func (c *Conn) InitContext(instructionData []byte) error {
 	tmp = sha256.Sum256(c.requestBodyKey[:])
 	copy(c.responseBodyKey[:], tmp[:16])
 	if c.metadata.Cipher == "" {
-		ciph, err := NewCipherFromSecurity(instructionData[35] & 0xf)
+		ciph, err := ParseCipherFromSecurity(instructionData[35] & 0xf)
 		if err != nil {
 			return err
 		}
-		c.metadata.Cipher = ciph
+		c.metadata.Cipher = string(ciph)
 	}
-	newAEAD, ok := NewCipherMapper[c.metadata.Cipher]
+	newAEAD, ok := NewCipherMapper[Cipher(c.metadata.Cipher)]
 	if !ok {
 		return fmt.Errorf("unexpected cipher: %v", c.metadata.Cipher)
 	}
@@ -167,7 +170,7 @@ func (c *Conn) InitContext(instructionData []byte) error {
 
 // Write writes data to the connection. Empty b should be written before closing the connection to indicate the terminal.
 func (c *Conn) Write(b []byte) (n int, err error) {
-	var encHeader []byte
+	var encRespHeader []byte
 	c.initWrite.Do(func() {
 		if c.metadata.IsClient {
 			instructionData := ReqInstructionDataFromPool(c.metadata)
@@ -203,11 +206,11 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		} else {
 			header := RespHeaderFromPool(c.responseAuth)
 			defer pool.Put(header)
-			encHeader, err = c.EncryptRespHeaderFromPool(header)
+			encRespHeader, err = c.EncryptRespHeaderFromPool(header)
 			if err != nil {
 				return
 			}
-			defer pool.Put(encHeader)
+			defer pool.Put(encRespHeader)
 			if c.writeBodyCipher, err = c.NewAEAD(c.responseBodyKey[:]); err != nil {
 				return
 			}
@@ -235,13 +238,13 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		_, err = c.Conn.Write(data)
 		return 0, err
 	}
-	switch c.metadata.InsCmd {
-	case InstructionCmdTCP:
-		return c.writeStream(b, encHeader)
-	case InstructionCmdUDP:
-		return c.writePacket(b, encHeader)
+	switch c.metadata.Network {
+	case "tcp":
+		return c.writeStream(b, encRespHeader)
+	case "udp":
+		return c.writePacket(b, encRespHeader)
 	default:
-		return 0, fmt.Errorf("unsupported network (instruction cmd): %v", c.metadata.InsCmd)
+		return 0, fmt.Errorf("unsupported network (instruction cmd): %v", c.metadata.Network)
 	}
 }
 
@@ -393,6 +396,41 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 		pool.Put(chunk)
 	}
 	return n, nil
+}
+
+func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
+	// FIXME: a compromise on Symmetric NAT
+	if c.cachedRAddrIP == nil {
+		c.cachedRAddrIP, err = net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	addr = c.cachedRAddrIP
+	n, err = c.Read(p)
+	return n, addr, err
+}
+
+func (c *Conn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	return c.Write(p)
+}
+
+func (c *Conn) LocalAddr() net.Addr {
+	switch c.metadata.Network {
+	case "udp":
+		return protocol.TCPAddrToUDPAddr(c.Conn.LocalAddr().(*net.TCPAddr))
+	default:
+		return c.Conn.LocalAddr()
+	}
+}
+
+func (c *Conn) RemoteAddr() net.Addr {
+	switch c.metadata.Network {
+	case "udp":
+		return protocol.TCPAddrToUDPAddr(c.Conn.RemoteAddr().(*net.TCPAddr))
+	default:
+		return c.Conn.RemoteAddr()
+	}
 }
 
 func (c *Conn) Metadata() Metadata {

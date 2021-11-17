@@ -9,7 +9,6 @@ import (
 // errInvalidWrite means that a write returned an impossible count.
 var errInvalidWrite = errors.New("invalid write result")
 
-
 // Copy copies from src to dst until either EOF is reached
 // on src or an error occurs. It returns the number of bytes
 // copied and the first error encountered while copying, if any.

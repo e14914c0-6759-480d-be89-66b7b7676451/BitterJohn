@@ -6,6 +6,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/net/dns/dnsmessage"
+	"golang.org/x/net/proxy"
 	"inet.af/netaddr"
 	"io"
 	"net"
@@ -14,22 +15,100 @@ import (
 
 var ErrDialPrivateAddress = fmt.Errorf("request to dial a private address")
 
-var DefaultLimitedDialer = net.Dialer{
-	Control: func(network, address string, c syscall.RawConn) error {
-		host, _, err := net.SplitHostPort(address)
-		if err != nil {
-			return err
+var SymmetricPrivateLimitedDialer = NewLimitedDialer(false)
+var FullconePrivateLimitedDialer = NewLimitedDialer(true)
+
+type PrivateLimitedDialer struct {
+	proxy.Dialer
+	netDialer net.Dialer
+	fullCone  bool
+}
+
+func NewLimitedDialer(fullCone bool) *PrivateLimitedDialer {
+	return &PrivateLimitedDialer{
+		netDialer: net.Dialer{
+			Control: func(network, address string, c syscall.RawConn) error {
+				host, _, err := net.SplitHostPort(address)
+				if err != nil {
+					return err
+				}
+				ip, err := netaddr.ParseIP(host)
+				if err != nil {
+					// not a valid IP address
+					return err
+				}
+				if common.IsPrivate(ip.IPAddr().IP) {
+					return fmt.Errorf("%w: %v", ErrDialPrivateAddress, ip.String())
+				}
+				return nil
+			},
+		},
+		fullCone: fullCone,
+	}
+}
+
+func (d *PrivateLimitedDialer) Dial(network, addr string) (c net.Conn, err error) {
+	switch network {
+	case "tcp":
+		return d.netDialer.Dial(network, addr)
+	case "udp":
+		if d.fullCone {
+			conn, err := net.ListenUDP(network, nil)
+			if err != nil {
+				return nil, err
+			}
+			return &PrivateLimitedUDPConn{UDPConn: conn, FullCone: true}, nil
+		} else {
+			conn, err := net.Dial(network, addr)
+			if err != nil {
+				return nil, err
+			}
+			return &PrivateLimitedUDPConn{UDPConn: conn.(*net.UDPConn), FullCone: false}, nil
 		}
-		ip, err := netaddr.ParseIP(host)
-		if err != nil {
-			// not a valid IP address
-			return err
-		}
-		if common.IsPrivate(ip.IPAddr().IP) {
-			return fmt.Errorf("%w: %v", ErrDialPrivateAddress, ip.String())
-		}
-		return nil
-	},
+	default:
+		return nil, net.UnknownNetworkError(network)
+	}
+}
+
+type PrivateLimitedUDPConn struct {
+	*net.UDPConn
+	FullCone bool
+}
+
+func (c *PrivateLimitedUDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	if !c.FullCone {
+		// FIXME: check the addr
+		return c.Write(b)
+	}
+	a, ok := addr.(*net.UDPAddr)
+	if !ok {
+		return 0, fmt.Errorf("addr is not net.UDPAddr")
+	}
+	if common.IsPrivate(a.IP) {
+		return 0, ErrDialPrivateAddress
+	}
+	return c.UDPConn.WriteTo(b, addr)
+}
+
+func (c *PrivateLimitedUDPConn) WriteMsgUDP(b, oob []byte, addr *net.UDPAddr) (n, oobn int, err error) {
+	if !c.FullCone {
+		n, err = c.Write(b)
+		return n, 0, err
+	}
+	if common.IsPrivate(addr.IP) {
+		return 0, 0, ErrDialPrivateAddress
+	}
+	return c.UDPConn.WriteMsgUDP(b, oob, addr)
+}
+
+func (c *PrivateLimitedUDPConn) WriteToUDP(b []byte, addr *net.UDPAddr) (int, error) {
+	if !c.FullCone {
+		return c.Write(b)
+	}
+	if common.IsPrivate(addr.IP) {
+		return 0, ErrDialPrivateAddress
+	}
+	return c.UDPConn.WriteToUDP(b, addr)
 }
 
 // LimitedDNSConn adheres to RFC 7766 section 5, "Transport Protocol Selection".

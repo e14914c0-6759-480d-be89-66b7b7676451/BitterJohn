@@ -28,24 +28,18 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 	if !passage.Manager {
 		return fmt.Errorf("handleMsg: illegal message received from a non-manager passage")
 	}
-	if reqMetadata.Type != shadowsocks.MetadataTypeMsg {
+	if reqMetadata.Type != protocol.MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
 	}
 	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
 
-	// we know the body length but we should read all
 	var req = pool.Get(int(reqMetadata.LenMsgBody & 0xfffff))
 	defer pool.Put(req)
 	if _, err := io.ReadFull(crw, req); err != nil {
 		return err
 	}
 
-	var respMeta = shadowsocks.Metadata{
-		Type: shadowsocks.MetadataTypeMsg,
-		Cmd:  protocol.MetadataCmdResponse,
-	}
 	var resp []byte
-	var buf bytes.Buffer
 	switch reqMetadata.Cmd {
 	case protocol.MetadataCmdPing:
 		if !bytes.Equal(req, []byte("ping")) {
@@ -60,14 +54,9 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 		}
 		bPingResp, err := jsoniter.Marshal(model.PingResp{BandwidthLimit: bandwidthLimit})
 		if err != nil {
-			log.Warn("%v", err)
+			log.Warn("Marshal: %v", err)
 			return err
 		}
-
-		respMeta.LenMsgBody = uint32(len(bPingResp))
-		bAddr := respMeta.BytesFromPool()
-		defer pool.Put(bAddr)
-		buf.Write(bAddr)
 
 		resp = bPingResp
 	case protocol.MetadataCmdSyncPassages:
@@ -89,26 +78,12 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 			return err
 		}
 
-		respMeta.LenMsgBody = 2
-		bAddr := respMeta.BytesFromPool()
-		defer pool.Put(bAddr)
-		buf.Write(bAddr)
-
-		resp = pool.Get(int(respMeta.LenMsgBody))
-		defer pool.Put(resp)
-		copy(resp, "OK")
+		resp = []byte("OK")
 	default:
 		return fmt.Errorf("%w: unexpected metadata cmd type: %v", server.ErrFailAuth, reqMetadata.Cmd)
 	}
 
-	buf.Write(resp)
-	lenPadding := shadowsocks.CalcPaddingLen(passage.inMasterKey, resp[len(resp)-int(respMeta.LenMsgBody):], false)
-	if lenPadding > 0 {
-		padding := pool.Get(lenPadding)
-		defer pool.Put(padding)
-		buf.Write(padding)
-	}
-	_, err := crw.Write(buf.Bytes())
+	_, err := crw.Write(resp)
 	return err
 }
 
@@ -131,7 +106,10 @@ func (s *Server) handleTCP(conn net.Conn) error {
 
 	// handle connection
 	var target string
-	lConn, err := shadowsocks.NewTCPConn(bConn, shadowsocks.CiphersConf[passage.In.Method], passage.inMasterKey, s.bloom)
+	lConn, err := shadowsocks.NewTCPConn(bConn, protocol.Metadata{
+		Cipher:   passage.In.Method,
+		IsClient: false,
+	}, passage.inMasterKey, s.bloom)
 	if err != nil {
 		bConn.Close()
 		return err
@@ -142,8 +120,9 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	if err != nil {
 		return err
 	}
-	if targetMetadata.Type == shadowsocks.MetadataTypeMsg {
-		return s.handleMsg(lConn, targetMetadata, passage)
+
+	if targetMetadata.Type == protocol.MetadataTypeMsg {
+		return s.handleMsg(lConn, &targetMetadata, passage)
 	}
 	if passage.Out == nil {
 		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
@@ -157,7 +136,17 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	}
 
 	// Dial and relay
-	rConn, err := server.DefaultLimitedDialer.Dial("tcp", target)
+	dialer := s.dialer
+	if passage.Out != nil {
+		targetMetadata.IsClient = true
+		targetMetadata.Cipher = passage.Out.Method
+		targetMetadata.Network = "tcp"
+		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, targetMetadata.Metadata, passage.Out.Password)
+		if err != nil {
+			return err
+		}
+	}
+	rConn, err := dialer.Dial("tcp", target)
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
@@ -166,21 +155,6 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		return err
 	}
 	defer rConn.Close()
-	if passage.Out != nil {
-		switch passage.Out.Protocol {
-		case model.ProtocolShadowsocks:
-			rConn, err = shadowsocks.NewTCPConn(rConn, shadowsocks.CiphersConf[passage.Out.Method], passage.outMasterKey, nil)
-			if err != nil {
-				return err
-			}
-			defer rConn.Close()
-			addr := targetMetadata.BytesFromPool()
-			defer pool.Put(addr)
-			if _, err = rConn.Write(addr); err != nil {
-				return err
-			}
-		}
-	}
 	if err = server.RelayTCP(lConn, rConn); err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {

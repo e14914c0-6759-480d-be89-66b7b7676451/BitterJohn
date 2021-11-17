@@ -16,6 +16,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/net/proxy"
 	"net"
 	"os"
 	"path/filepath"
@@ -61,7 +62,10 @@ func Run() {
 
 	conf := config.ParamsObj
 
-	var ctx context.Context
+	var (
+		ctx    context.Context
+		dialer proxy.Dialer
+	)
 	switch conf.John.Protocol {
 	case string(model.ProtocolShadowsocks):
 		bloom, err := disk_bloom.NewBloom(filepath.Join(filepath.Dir(v.ConfigFileUsed()), "disk_bloom_*"), []byte(DiskBloomSalt))
@@ -69,14 +73,16 @@ func Run() {
 			log.Fatal("%v", err)
 		}
 		ctx = context.WithValue(context.Background(), "bloom", bloom)
+		dialer = server.FullconePrivateLimitedDialer
 	case string(model.ProtocolVMessTCP):
 		doubleCuckoo := vmess.NewReplayFilter(120)
 		ctx = context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo)
+		dialer = server.SymmetricPrivateLimitedDialer
 	}
 
 	// listen
-	s, err := server.NewServer(ctx,
-		conf.John.Protocol, &conf.Lisa, server.Argument{
+	s, err := server.NewServer(ctx, dialer,
+		conf.John.Protocol, conf.Lisa, server.Argument{
 			Ticket:    conf.John.Ticket,
 			Name:      conf.John.Name,
 			Hostnames: conf.John.Hostname,

@@ -7,11 +7,9 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"golang.org/x/crypto/chacha20poly1305"
@@ -65,7 +63,7 @@ func ContainOption(options byte, option byte) bool {
 	return options&option == option
 }
 
-func NewCipherFromSecurity(security byte) (Cipher, error) {
+func ParseCipherFromSecurity(security byte) (Cipher, error) {
 	switch security {
 	case 4:
 		return CipherC20P1305, nil
@@ -83,7 +81,7 @@ func (c Cipher) ToSecurity() byte {
 	case CipherAES128GCM:
 		return 3
 	default:
-		log.Warn("unexpected cipher: %v", c)
+		//log.Warn("unexpected cipher: %v", c)
 		return CipherAES128GCM.ToSecurity()
 	}
 }
@@ -161,11 +159,11 @@ func ReqInstructionDataFromPool(metadata Metadata) []byte {
 	//buf[34] = OptionChunkStream | OptionChunkLengthMasking | OptionGlobalPadding
 	buf[34] = OptionChunkStream | OptionChunkLengthMasking | OptionGlobalPadding
 	// https://github.com/v2fly/v2ray-core/blob/054e6679830885c94cc37d27ab2aa96b5b37e019/common/protocol/headers.pb.go#L37
-	buf[35] = byte(P)<<4 | metadata.Cipher.ToSecurity()
+	buf[35] = byte(P)<<4 | Cipher(metadata.Cipher).ToSecurity()
 	buf[36] = 0                                           // Reserved
-	buf[37] = byte(metadata.InsCmd)                       // TCP/UDP
+	buf[37] = NetworkToByte(metadata.Network)             // TCP/UDP
 	binary.BigEndian.PutUint16(buf[38:40], metadata.Port) // Port
-	buf[40] = byte(metadata.Type)                         // Address Type
+	buf[40] = MetadataTypeToByte(metadata.Type)           // Address Type
 	metadata.PutAddr(buf[41:])                            // Address
 	n := len(buf) - 4
 	h := fnv.New32a()

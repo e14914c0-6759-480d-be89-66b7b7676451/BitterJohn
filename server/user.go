@@ -5,10 +5,6 @@ import (
 	"time"
 )
 
-type Passage struct {
-	Manager bool
-	model.Passage
-}
 type PassageUse string
 
 const (
@@ -25,3 +21,18 @@ var (
 		PassageUseManager: 90 * time.Second,
 	}
 )
+
+type Passage struct {
+	Manager bool
+	model.Passage
+}
+
+func (p *Passage) Use() (use PassageUse) {
+	if p.Manager {
+		return PassageUseManager
+	} else if p.In.From == "" {
+		return PassageUseUser
+	} else {
+		return PassageUseRelay
+	}
+}

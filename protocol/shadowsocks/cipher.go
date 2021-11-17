@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/sha1"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/hkdf"
@@ -71,7 +72,6 @@ func EVPBytesToKey(password string, keyLen int) (key []byte) {
 	return m[:keyLen]
 }
 
-
 func (conf *CipherConf) Verify(buf []byte, masterKey []byte, salt []byte, cipherText []byte, subKey *[]byte) ([]byte, bool) {
 	var sk []byte
 	if subKey != nil && len(*subKey) == conf.KeyLen {
@@ -98,4 +98,63 @@ func (conf *CipherConf) Verify(buf []byte, masterKey []byte, salt []byte, cipher
 		return nil, false
 	}
 	return buf[:len(cipherText)-ciph.Overhead()], true
+}
+
+// EncryptUDPFromPool returns shadowBytes from pool.
+// the shadowBytes MUST be put back.
+func EncryptUDPFromPool(key Key, b []byte) (shadowBytes []byte, err error) {
+	var buf = pool.Get(key.CipherConf.SaltLen + len(b) + key.CipherConf.TagLen)
+	defer func() {
+		if err != nil {
+			pool.Put(buf)
+		}
+	}()
+	_, err = fastrand.Read(buf[:key.CipherConf.SaltLen])
+	if err != nil {
+		return nil, err
+	}
+	subKey := pool.Get(key.CipherConf.KeyLen)
+	defer pool.Put(subKey)
+	kdf := hkdf.New(
+		sha1.New,
+		key.MasterKey,
+		buf[:key.CipherConf.SaltLen],
+		ReusedInfo,
+	)
+	_, err = io.ReadFull(kdf, subKey)
+	if err != nil {
+		return nil, err
+	}
+	ciph, err := key.CipherConf.NewCipher(subKey)
+	if err != nil {
+		return nil, err
+	}
+	_ = ciph.Seal(buf[key.CipherConf.SaltLen:key.CipherConf.SaltLen], ZeroNonce[:key.CipherConf.NonceLen], b, nil)
+	return buf, nil
+}
+
+// DecryptUDP will decrypt the data in place
+func DecryptUDP(key Key, shadowBytes []byte) (n int, err error) {
+	subKey := pool.Get(key.CipherConf.KeyLen)
+	defer pool.Put(subKey)
+	kdf := hkdf.New(
+		sha1.New,
+		key.MasterKey,
+		shadowBytes[:key.CipherConf.SaltLen],
+		ReusedInfo,
+	)
+	_, err = io.ReadFull(kdf, subKey)
+	if err != nil {
+		return
+	}
+	ciph, err := key.CipherConf.NewCipher(subKey)
+	if err != nil {
+		return
+	}
+	plainText, err := ciph.Open(shadowBytes[key.CipherConf.SaltLen:key.CipherConf.SaltLen], ZeroNonce[:key.CipherConf.NonceLen], shadowBytes[key.CipherConf.SaltLen:], nil)
+	if err != nil {
+		return 0, err
+	}
+	copy(shadowBytes, plainText)
+	return len(plainText), nil
 }

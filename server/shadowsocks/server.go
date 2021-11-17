@@ -16,6 +16,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	gonanoid "github.com/matoous/go-nanoid"
 	disk_bloom "github.com/mzz2017/disk-bloom"
+	"golang.org/x/net/proxy"
 	"net"
 	"strconv"
 	"sync"
@@ -23,12 +24,12 @@ import (
 )
 
 func init() {
-	server.Register("shadowsocks", New)
+	server.Register("shadowsocks", NewJohn)
 }
 
 type Server struct {
 	closed    chan struct{}
-	sweetLisa *config.Lisa
+	sweetLisa config.Lisa
 	typ       string
 	arg       server.Argument
 	lastAlive time.Time
@@ -38,52 +39,50 @@ type Server struct {
 	userContextPool *UserContextPool
 	listener        net.Listener
 	udpConn         *net.UDPConn
-	nm              *shadowsocks.UDPConnMapping
+	nm              *UDPConnMapping
 	// passageContentionCache log the last client IP of passages
 	passageContentionCache *server.ContentionCache
 
-	bloom *disk_bloom.FilterGroup
+	bloom  *disk_bloom.FilterGroup
+	dialer proxy.Dialer
 }
 
 type Passage struct {
 	server.Passage
 	inMasterKey  []byte
-	outMasterKey []byte
 }
 
-func (p *Passage) Use() (use server.PassageUse) {
-	if p.Manager {
-		return server.PassageUseManager
-	} else if p.In.From == "" {
-		return server.PassageUseUser
-	} else {
-		return server.PassageUseRelay
-	}
-}
-
-func New(valueCtx context.Context, sweetLisaHost *config.Lisa, arg server.Argument) (server.Server, error) {
+func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
 	bloom := valueCtx.Value("bloom").(*disk_bloom.FilterGroup)
 	s := &Server{
-		userContextPool:        (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
-		nm:                     shadowsocks.NewUDPConnMapping(),
-		sweetLisa:              sweetLisaHost,
-		closed:                 make(chan struct{}),
-		arg:                    arg,
-		passageContentionCache: server.NewContentionCache(),
-		bloom:                  bloom,
-	}
-	if sweetLisaHost != nil {
-		if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
-			return nil, err
-		}
-
-		// connect to SweetLisa and register
-		if err := s.register(); err != nil {
-			return nil, err
-		}
-		go s.registerBackground()
+		userContextPool: (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
+		nm:              NewUDPConnMapping(),
+		closed:          make(chan struct{}),
+		bloom:           bloom,
+		dialer:          dialer,
 	}
 	return s, nil
+}
+
+func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisa config.Lisa, arg server.Argument) (server.Server, error) {
+	s, err := New(valueCtx, dialer)
+	if err != nil {
+		return nil, err
+	}
+	john := s.(*Server)
+	john.sweetLisa = sweetLisa
+	john.arg = arg
+	john.passageContentionCache = server.NewContentionCache()
+	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
+		return nil, err
+	}
+
+	// connect to SweetLisa and register
+	if err := john.register(); err != nil {
+		return nil, err
+	}
+	go john.registerBackground()
+	return john, nil
 }
 
 func (s *Server) registerBackground() {
@@ -275,10 +274,6 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 			psgs[i].In.Method = "chacha20-ietf-poly1305"
 		}
 		psgs[i].inMasterKey = shadowsocks.EVPBytesToKey(psg.In.Password, shadowsocks.CiphersConf[psg.In.Method].KeyLen)
-		// TODO: other protocols
-		if psg.Out != nil && psg.Out.Protocol == model.ProtocolShadowsocks {
-			psgs[i].outMasterKey = shadowsocks.EVPBytesToKey(psg.Out.Password, shadowsocks.CiphersConf[psg.Out.Method].KeyLen)
-		}
 	}
 	return psgs, manager
 }
@@ -361,6 +356,9 @@ func (s *Server) removePassagesFunc(f func(passage Passage) (remove bool)) {
 }
 
 func (s *Server) ContentionCheck(thisIP net.IP, passage *Passage) (err error) {
+	if s.passageContentionCache == nil {
+		return nil
+	}
 	contentionDuration := server.ProtectTime[passage.Use()]
 	if contentionDuration > 0 {
 		passageKey := passage.In.Argument.Hash()

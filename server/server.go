@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
+	"golang.org/x/net/proxy"
 	"io"
 	"strconv"
 	"time"
@@ -24,7 +25,7 @@ type Argument struct {
 	Hostnames string
 	Port      int
 
-	NoRelay  bool
+	NoRelay bool
 }
 
 type Server interface {
@@ -36,7 +37,7 @@ type Server interface {
 	io.Closer
 }
 
-type Creator func(valueCtx context.Context, sweetLisaHost *config.Lisa, arg Argument) (Server, error)
+type Creator func(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg Argument) (Server, error)
 
 var Mapper = make(map[string]Creator)
 
@@ -44,10 +45,10 @@ func Register(name string, c Creator) {
 	Mapper[name] = c
 }
 
-func NewServer(valueCtx context.Context, protocol string, sweetLisaHost *config.Lisa, arg Argument) (Server, error) {
+func NewServer(valueCtx context.Context, dialer proxy.Dialer, protocol string, sweetLisaHost config.Lisa, arg Argument) (Server, error) {
 	creator, ok := Mapper[protocol]
 	if !ok {
 		return nil, fmt.Errorf("no server creator registered for %v", strconv.Quote(protocol))
 	}
-	return creator(valueCtx, sweetLisaHost, arg)
+	return creator(valueCtx, dialer, sweetLisaHost, arg)
 }

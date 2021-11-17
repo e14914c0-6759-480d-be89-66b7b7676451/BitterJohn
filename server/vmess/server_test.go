@@ -5,12 +5,13 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+	"golang.org/x/net/proxy"
 	"testing"
 )
 
 func TestServer(t *testing.T) {
 	doubleCuckoo := vmess.NewReplayFilter(120)
-	svr, err := New(context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo), nil, server.Argument{})
+	svr, err := New(context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo), proxy.Direct)
 	if err != nil {
 		t.Fatal(err)
 	}
