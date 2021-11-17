@@ -164,7 +164,6 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		prompt := &promptui.Prompt{
 			Label:     fmt.Sprintf("The file %v exists. Overwrite", targetConfigPath),
 			IsConfirm: true,
-			Default:   "n",
 		}
 		_, err := prompt.Run()
 		if err != nil {
@@ -253,8 +252,9 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 
 	var noRelay bool
 	prompt = &promptui.Prompt{
-		Label:     "This machine does not need relays.",
+		Label:     "This machine doesn't need relays? [n (no relays) / Y (need relays)]",
 		IsConfirm: true,
+		Default:   "y",
 	}
 	_, err = prompt.Run()
 	if err == nil {
@@ -262,7 +262,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	}
 
 	prompt = &promptui.Prompt{
-		Label:     "Do you want to set bandwidth limit?",
+		Label:     "Do you want to set bandwidth limit",
 		IsConfirm: true,
 	}
 	_, err = prompt.Run()
@@ -295,6 +295,13 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		totalLimitGiB = common.ShouldParseInt64(fields[2])
 	}
 
+	var protocol string
+	sel := &promptui.Select{
+		Label: "Protocol",
+		Items: []string{"vmess", "shadowsocks"},
+	}
+	_, protocol, err = sel.Run()
+
 	return &config.Params{
 		Lisa: config.Lisa{
 			Host: sweetLisaHost,
@@ -313,7 +320,8 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 				DownlinkLimitGiB: downlinkLimitGiB,
 				TotalLimitGiB:    totalLimitGiB,
 			},
-			NoRelay: noRelay,
+			NoRelay:  noRelay,
+			Protocol: protocol,
 		},
 	}, true, nil
 }
