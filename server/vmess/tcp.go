@@ -228,7 +228,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 
 func relayConnToUDP(dst net.PacketConn, raddr net.Addr, src *vmess.Conn, timeout time.Duration) (err error) {
 	var n int
-	buf := pool.Get(vmess.MaxChunkSize)
+	buf := pool.Get(vmess.MaxUDPSize)
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))

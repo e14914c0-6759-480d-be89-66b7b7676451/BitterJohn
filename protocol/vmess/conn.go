@@ -16,7 +16,10 @@ import (
 	"sync"
 )
 
-const MaxChunkSize = 2048
+const (
+	MaxChunkSize = 1 << 14
+	MaxUDPSize   = 1 << 11
+)
 
 type Conn struct {
 	net.Conn
@@ -75,7 +78,8 @@ func (c *Conn) chunks(size int) (payloadSize int, numChunks int) {
 }
 
 func GenerateChunkNonce(nonce []byte, size uint32) BytesGenerator {
-	c := append([]byte(nil), nonce...)
+	c := make([]byte, size)
+	copy(c[2:], nonce[2:])
 	count := uint16(0)
 	return func() []byte {
 		binary.BigEndian.PutUint16(c, count)
