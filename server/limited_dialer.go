@@ -59,7 +59,7 @@ func (d *PrivateLimitedDialer) Dial(network, addr string) (c net.Conn, err error
 			}
 			return &PrivateLimitedUDPConn{UDPConn: conn, FullCone: true}, nil
 		} else {
-			conn, err := net.Dial(network, addr)
+			conn, err := d.netDialer.Dial(network, addr)
 			if err != nil {
 				return nil, err
 			}

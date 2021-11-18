@@ -77,7 +77,7 @@ func Run() {
 	case string(model.ProtocolVMessTCP):
 		doubleCuckoo := vmess.NewReplayFilter(120)
 		ctx = context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo)
-		dialer = server.SymmetricPrivateLimitedDialer
+		dialer = server.FullconePrivateLimitedDialer
 	}
 
 	// listen
