@@ -33,7 +33,7 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 	}
 	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
 
-	var req = pool.Get(int(reqMetadata.LenMsgBody & 0xfffff))
+	var req = pool.Get(int(reqMetadata.LenMsgBody & 0xffffff))
 	defer pool.Put(req)
 	if _, err := io.ReadFull(crw, req); err != nil {
 		return err

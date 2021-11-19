@@ -186,7 +186,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 
 			var header []byte
 			if header, err = EncryptReqHeaderFromPool(instructionData, c.cmdKey); err != nil {
-				pool.Put(header)
 				return
 			}
 			defer pool.Put(header)
@@ -214,7 +213,6 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			if err != nil {
 				return
 			}
-			defer pool.Put(encRespHeader)
 			if c.writeBodyCipher, err = c.NewAEAD(c.responseBodyKey[:]); err != nil {
 				return
 			}
@@ -233,6 +231,9 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 			c.writeNonceGenerator = GenerateChunkNonce(c.responseBodyIV[:], uint32(c.writeBodyCipher.NonceSize()))
 		}
 	})
+	if len(encRespHeader) != 0 {
+		defer pool.Put(encRespHeader)
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -242,6 +243,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 		_, err = c.Conn.Write(data)
 		return 0, err
 	}
+	//log.Trace("vmess: write len(b)=%v", len(b))
 	switch c.metadata.Network {
 	case "tcp":
 		return c.writeStream(b, encRespHeader)
@@ -266,6 +268,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if _, err = ciph.Open(bufSize[:0], KDF(c.responseBodyIV[:], []byte(KDFSaltConstAEADRespHeaderLenIV))[:12], bufSize, nil); err != nil {
+				err = fmt.Errorf("failed to decrypt response header length: %w", err)
 				return
 			}
 			headerSize := binary.BigEndian.Uint16(bufSize[:2])
@@ -279,6 +282,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if _, err = ciph.Open(buf[:0], KDF(c.responseBodyIV[:], []byte(KDFSaltConstAEADRespHeaderPayloadIV))[:12], buf, nil); err != nil {
+				err = fmt.Errorf("failed to decrypt response header: %w", err)
 				return
 			}
 			if buf[0] != c.responseAuth {
@@ -322,6 +326,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if _, err = ciph.Open(buf[:0], KDF(c.cmdKey, []byte(KDFSaltConstVMessHeaderPayloadLengthAEADIV), c.metadata.authedEAuthID[:], connectionNonce)[:12], buf[:18], c.metadata.authedEAuthID[:]); err != nil {
+				err = fmt.Errorf("failed to decrypt request header length: %w", err)
 				return
 			}
 			lenInstruction := binary.BigEndian.Uint16(buf)
@@ -336,6 +341,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 				return
 			}
 			if _, err = ciph.Open(instructionData[:0], KDF(c.cmdKey, []byte(KDFSaltConstVMessHeaderPayloadAEADIV), c.metadata.authedEAuthID[:], connectionNonce)[:12], instructionData, c.metadata.authedEAuthID[:]); err != nil {
+				err = fmt.Errorf("failed to decrypt request header: %w", err)
 				return
 			}
 			if err = c.InitContext(instructionData[:lenInstruction]); err != nil {
@@ -388,6 +394,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	if err != nil {
 		return 0, err
 	}
+	//log.Trace("vmess: read len(chunk)=%v", len(chunk))
 	n = copy(b, chunk)
 	if n < len(chunk) {
 		// wait for the next read

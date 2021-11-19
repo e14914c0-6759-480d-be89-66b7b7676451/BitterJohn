@@ -359,33 +359,3 @@ func CalcPaddingLen(masterKey []byte, bodyWithoutAddr []byte, req bool) (length 
 	h.Write(bodyWithoutAddr)
 	return int(h.Sum32()) % maxPadding
 }
-
-// GetTurn executes one msg request and get one response like HTTP
-func (c *TCPConn) GetTurn(addr Metadata, reqBody []byte) (resp []byte, err error) {
-	go func() {
-		// FIXME
-		addr.Type = protocol.MetadataTypeMsg
-		lenPadding := CalcPaddingLen(c.masterKey, reqBody, true)
-		addr.LenMsgBody = uint32(len(reqBody))
-		bAddr := addr.BytesFromPool()
-		defer pool.Put(bAddr)
-		buf := pool.Get(len(bAddr) + len(reqBody) + lenPadding)
-		defer pool.Put(buf)
-		copy(buf, bAddr)
-		copy(buf[len(bAddr):], reqBody)
-		//log.Trace("GetTurn: write to %v: %v", c.RemoteAddr().String(), buf)
-		c.Write(buf)
-	}()
-	respMeta, err := c.ReadMetadata()
-	if err != nil {
-		return nil, err
-	}
-	if respMeta.Type != protocol.MetadataTypeMsg || respMeta.Cmd != protocol.MetadataCmdResponse {
-		return nil, fmt.Errorf("%w: unexpected metadata type %v or cmd %v", server.ErrFailAuth, respMeta.Type, respMeta.Cmd)
-	}
-	resp = make([]byte, int(respMeta.LenMsgBody))
-	if _, err := io.ReadFull(c, resp); err != nil {
-		return nil, fmt.Errorf("%w: response body length is shorter than it should be", server.ErrFailAuth)
-	}
-	return resp, nil
-}

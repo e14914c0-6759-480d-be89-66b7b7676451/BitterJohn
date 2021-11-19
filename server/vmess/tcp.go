@@ -160,7 +160,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	if reqMetadata.Type != protocol.MetadataTypeMsg {
 		return fmt.Errorf("handleMsg: this connection is not for message")
 	}
-	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
+	log.Trace("handleMsg(vmess): cmd: %v", reqMetadata.Cmd)
 
 	// we know the body length but we should read all
 	bufLen := pool.Get(4)
@@ -168,7 +168,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	if _, err := io.ReadFull(conn, bufLen); err != nil {
 		return err
 	}
-	respBody := pool.Get(int(binary.BigEndian.Uint32(bufLen) & 0xfffff))
+	respBody := pool.Get(int(binary.BigEndian.Uint32(bufLen) & 0xffffff))
 	defer pool.Put(respBody)
 	if _, err := io.ReadFull(conn, respBody); err != nil {
 		return err
