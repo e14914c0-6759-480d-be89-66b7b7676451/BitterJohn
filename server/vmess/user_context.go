@@ -1,4 +1,4 @@
-package shadowsocks
+package vmess
 
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"

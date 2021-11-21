@@ -211,7 +211,7 @@ func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (pas
 	if len(data) < BasicLen {
 		return nil, nil, io.ErrUnexpectedEOF
 	}
-	passage, content = userContext.Auth(func(passage Passage) ([]byte, bool) {
+	passage, content = userContext.Auth(func(passage *Passage) ([]byte, bool) {
 		return probeUDP(buf, data, passage)
 	})
 	if passage == nil {
@@ -224,7 +224,7 @@ func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (pas
 	return passage, content, nil
 }
 
-func probeUDP(buf []byte, data []byte, server Passage) (content []byte, ok bool) {
+func probeUDP(buf []byte, data []byte, server *Passage) (content []byte, ok bool) {
 	//[salt][encrypted payload][tag]
 	conf := shadowsocks.CiphersConf[server.In.Method]
 	if len(data) < conf.SaltLen+conf.TagLen {

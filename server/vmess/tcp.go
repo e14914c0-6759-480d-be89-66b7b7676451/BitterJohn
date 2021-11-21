@@ -121,36 +121,22 @@ func (s *Server) authFromPool(conn net.Conn) (passage *Passage, eAuthID []byte, 
 		pool.Put(eAuthID)
 		return nil, nil, err
 	}
-	s.mutex.Lock()
-	var passages = make([]Passage, len(s.passages))
-	copy(passages, s.passages)
-	s.mutex.Unlock()
-	for i := range passages {
-		if err := vmess.AuthEAuthID(passages[i].inEAuthIDBlock, eAuthID, s.doubleCuckoo, s.startTimestamp); errors.Is(err, server.ErrReplayAttack) || errors.Is(err, server.ErrFailAuth) {
-			pool.Put(eAuthID)
-			return nil, nil, err
-		} else if err == nil {
-			return &passages[i], eAuthID, nil
+	userContext := s.GetUserContextOrInsert(conn.RemoteAddr().(*net.TCPAddr).IP.String())
+	hit, _ := userContext.Auth(func(passage *Passage) ([]byte, bool) {
+		if err = vmess.AuthEAuthID(passage.inEAuthIDBlock, eAuthID, s.doubleCuckoo, s.startTimestamp); err == nil {
+			return nil, true
 		}
+		return nil, false
+	})
+	if errors.Is(err, server.ErrReplayAttack) || errors.Is(err, server.ErrFailAuth) {
+		pool.Put(eAuthID)
+		return nil, nil, err
 	}
-	pool.Put(eAuthID)
-	log.Warn("not found")
-	return nil, nil, fmt.Errorf("%w: not found", server.ErrFailAuth)
-}
-
-func (s *Server) ContentionCheck(thisIP net.IP, passage *Passage) (err error) {
-	if s.passageContentionCache == nil {
-		return nil
+	if hit == nil {
+		pool.Put(eAuthID)
+		return nil, nil, fmt.Errorf("%w: not found", server.ErrFailAuth)
 	}
-	contentionDuration := server.ProtectTime[passage.Use()]
-	if contentionDuration > 0 {
-		passageKey := passage.In.Argument.Hash()
-		accept, conflictIP := s.passageContentionCache.Check(passageKey, contentionDuration, thisIP)
-		if !accept {
-			return fmt.Errorf("%w: from %v and %v: contention detected", server.ErrPassageAbuse, thisIP.String(), conflictIP.String())
-		}
-	}
-	return nil
+	return hit, eAuthID, nil
 }
 
 func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passage *Passage) error {

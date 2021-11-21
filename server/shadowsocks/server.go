@@ -286,7 +286,7 @@ func (s *Server) AddPassages(passages []server.Passage) (err error) {
 	// update manager key
 	if managerKey != nil {
 		// remove manager key in UserContext
-		s.removePassagesFunc(func(passage Passage) (remove bool) {
+		s.removePassagesFunc(func(passage *Passage) (remove bool) {
 			return passage.Manager == true
 		})
 	}
@@ -306,7 +306,7 @@ func (s *Server) RemovePassages(passages []server.Passage, alsoManager bool) (er
 		}
 		keySet[passage.In.Argument.Hash()] = struct{}{}
 	}
-	s.removePassagesFunc(func(passage Passage) (remove bool) {
+	s.removePassagesFunc(func(passage *Passage) (remove bool) {
 		_, ok := keySet[passage.In.Argument.Hash()]
 		return ok
 	})
@@ -326,8 +326,8 @@ func (s *Server) addPassages(passages []Passage) {
 	s.passages = append(s.passages, passages...)
 
 	var vals []interface{}
-	for _, k := range passages {
-		vals = append(vals, k)
+	for i := range passages {
+		vals = append(vals, &passages[i])
 	}
 	socketIdents := s.userContextPool.Infra().GetKeys()
 	for _, ident := range socketIdents {
@@ -336,9 +336,9 @@ func (s *Server) addPassages(passages []Passage) {
 	}
 }
 
-func (s *Server) removePassagesFunc(f func(passage Passage) (remove bool)) {
+func (s *Server) removePassagesFunc(f func(passage *Passage) (remove bool)) {
 	for i := len(s.passages) - 1; i >= 0; i-- {
-		if f(s.passages[i]) {
+		if f(&s.passages[i]) {
 			s.passages = append(s.passages[:i], s.passages[i+1:]...)
 		}
 	}
@@ -347,7 +347,7 @@ func (s *Server) removePassagesFunc(f func(passage Passage) (remove bool)) {
 		userContext := s.userContextPool.Infra().Get(ident).(*UserContext).Infra()
 		listCopy := userContext.GetListCopy()
 		for _, node := range listCopy {
-			if f(node.Val.(Passage)) {
+			if f(node.Val.(*Passage)) {
 				userContext.Remove(node)
 			}
 		}

@@ -174,7 +174,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 	}
 	// find passage
 	ctx := s.GetUserContextOrInsert(conn.RemoteAddr().(*net.TCPAddr).IP.String())
-	passage, _ = ctx.Auth(func(passage Passage) ([]byte, bool) {
+	passage, _ = ctx.Auth(func(passage *Passage) ([]byte, bool) {
 		return s.probeTCP(buf, data, passage)
 	})
 	if passage == nil {
@@ -187,7 +187,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 	return passage, nil
 }
 
-func (s *Server) probeTCP(buf []byte, data []byte, passage Passage) ([]byte, bool) {
+func (s *Server) probeTCP(buf []byte, data []byte, passage *Passage) ([]byte, bool) {
 	//[salt][encrypted payload length][length tag][encrypted payload][payload tag]
 	conf := shadowsocks.CiphersConf[passage.In.Method]
 

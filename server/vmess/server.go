@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/aes"
 	"errors"
+	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
@@ -28,9 +30,10 @@ type Server struct {
 	arg       server.Argument
 	lastAlive time.Time
 
-	listener net.Listener
-	mutex    sync.Mutex
-	passages []Passage
+	listener        net.Listener
+	mutex           sync.Mutex
+	passages        []Passage
+	userContextPool *UserContextPool
 	// passageContentionCache log the last client IP of passages
 	passageContentionCache *server.ContentionCache
 
@@ -43,9 +46,10 @@ type Server struct {
 func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
 	doubleCuckoo := valueCtx.Value("doubleCuckoo").(*vmess.ReplayFilter)
 	s := &Server{
-		doubleCuckoo: doubleCuckoo,
-		dialer:       dialer,
-		closed:       make(chan struct{}),
+		doubleCuckoo:    doubleCuckoo,
+		dialer:          dialer,
+		closed:          make(chan struct{}),
+		userContextPool: (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
 	}
 	return s, nil
 }
@@ -105,7 +109,7 @@ func (s *Server) AddPassages(passages []server.Passage) (err error) {
 	// update manager key
 	if managerKey != nil {
 		// remove manager key in UserContext
-		s.removePassagesFunc(func(passage Passage) (remove bool) {
+		s.removePassagesFunc(func(passage *Passage) (remove bool) {
 			return passage.Manager == true
 		})
 	}
@@ -158,7 +162,7 @@ func (s *Server) RemovePassages(passages []server.Passage, alsoManager bool) (er
 		}
 		keySet[passage.In.Argument.Hash()] = struct{}{}
 	}
-	s.removePassagesFunc(func(passage Passage) (remove bool) {
+	s.removePassagesFunc(func(passage *Passage) (remove bool) {
 		_, ok := keySet[passage.In.Argument.Hash()]
 		return ok
 	})
@@ -184,13 +188,34 @@ func (s *Server) Close() error {
 
 func (s *Server) addPassages(passages []Passage) {
 	s.passages = append(s.passages, passages...)
+
+	var vals []interface{}
+	for i := range passages {
+		vals = append(vals, &passages[i])
+	}
+	socketIdents := s.userContextPool.Infra().GetKeys()
+	for _, ident := range socketIdents {
+		userContext := s.userContextPool.Infra().Get(ident).(*UserContext).Infra()
+		userContext.Insert(vals)
+	}
 }
 
-func (s *Server) removePassagesFunc(f func(passage Passage) (remove bool)) {
+func (s *Server) removePassagesFunc(f func(passage *Passage) (remove bool)) {
 	for i := len(s.passages) - 1; i >= 0; i-- {
-		if f(s.passages[i]) {
+		if f(&s.passages[i]) {
 			s.passages = append(s.passages[:i], s.passages[i+1:]...)
 		}
+	}
+	socketIdents := s.userContextPool.Infra().GetKeys()
+	for _, ident := range socketIdents {
+		userContext := s.userContextPool.Infra().Get(ident).(*UserContext).Infra()
+		listCopy := userContext.GetListCopy()
+		for _, node := range listCopy {
+			if f(node.Val.(*Passage)) {
+				userContext.Remove(node)
+			}
+		}
+		userContext.DestroyListCopy(listCopy)
 	}
 }
 
@@ -264,6 +289,21 @@ func (s *Server) register() error {
 	// sweetLisa can replace the manager key here
 	if err := s.SyncPassages(users); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (s *Server) ContentionCheck(thisIP net.IP, passage *Passage) (err error) {
+	if s.passageContentionCache == nil {
+		return nil
+	}
+	contentionDuration := server.ProtectTime[passage.Use()]
+	if contentionDuration > 0 {
+		passageKey := passage.In.Argument.Hash()
+		accept, conflictIP := s.passageContentionCache.Check(passageKey, contentionDuration, thisIP)
+		if !accept {
+			return fmt.Errorf("%w: from %v and %v: contention detected", server.ErrPassageAbuse, thisIP.String(), conflictIP.String())
+		}
 	}
 	return nil
 }
