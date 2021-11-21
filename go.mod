@@ -3,12 +3,12 @@ module github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
 go 1.17
 
 require (
+	github.com/1lann/promptui v0.0.0-20201231203810-3d80f6bc68f3
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/cloudflare/cloudflare-go v0.26.0
 	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211106045307-739b77368531
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
-	github.com/manifoldco/promptui v0.8.0
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mzz2017/disk-bloom v1.0.1
 	github.com/pkg/errors v0.9.1
