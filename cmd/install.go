@@ -257,7 +257,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		Default:   "y",
 	}
 	_, err = prompt.Run()
-	if err == nil {
+	if err != nil {
 		noRelay = true
 	}
 
