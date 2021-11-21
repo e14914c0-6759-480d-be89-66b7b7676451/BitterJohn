@@ -33,17 +33,18 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 	}
 	log.Trace("handleMsg: cmd: %v", reqMetadata.Cmd)
 
-	var req = pool.Get(int(reqMetadata.LenMsgBody & 0xffffff))
-	defer pool.Put(req)
-	if _, err := io.ReadFull(crw, req); err != nil {
-		return err
-	}
+	var reqBody = io.LimitReader(crw, int64(reqMetadata.LenMsgBody))
 
 	var resp []byte
 	switch reqMetadata.Cmd {
 	case protocol.MetadataCmdPing:
-		if !bytes.Equal(req, []byte("ping")) {
-			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(req)), strconv.Quote("ping"))
+		buf := pool.Get(4)
+		defer pool.Put(buf)
+		if _, err := io.ReadFull(reqBody, buf); err != nil {
+			return err
+		}
+		if !bytes.Equal(buf, []byte("ping")) {
+			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(buf)), strconv.Quote("ping"))
 		}
 		log.Trace("Received a ping message")
 		s.lastAlive = time.Now()
@@ -61,7 +62,7 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 		resp = bPingResp
 	case protocol.MetadataCmdSyncPassages:
 		var passages []model.Passage
-		if err := jsoniter.Unmarshal(req, &passages); err != nil {
+		if err := jsoniter.NewDecoder(reqBody).Decode(&passages); err != nil {
 			return err
 		}
 		var serverPassages []server.Passage

@@ -154,17 +154,19 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	if _, err := io.ReadFull(conn, bufLen); err != nil {
 		return err
 	}
-	respBody := pool.Get(int(binary.BigEndian.Uint32(bufLen) & 0xffffff))
-	defer pool.Put(respBody)
-	if _, err := io.ReadFull(conn, respBody); err != nil {
-		return err
-	}
+
+	var reqBody = io.LimitReader(conn, int64(binary.BigEndian.Uint32(bufLen)))
 
 	var resp []byte
 	switch reqMetadata.Cmd {
 	case protocol.MetadataCmdPing:
-		if !bytes.Equal(respBody, []byte("ping")) {
-			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(respBody)), strconv.Quote("ping"))
+		buf := pool.Get(4)
+		defer pool.Put(buf)
+		if _, err := io.ReadFull(reqBody, buf); err != nil {
+			return err
+		}
+		if !bytes.Equal(buf, []byte("ping")) {
+			log.Warn("the body of received ping message is %v instead of %v", strconv.Quote(string(buf)), strconv.Quote("ping"))
 		}
 		log.Trace("Received a ping message")
 		s.lastAlive = time.Now()
@@ -181,7 +183,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 		resp = bPingResp
 	case protocol.MetadataCmdSyncPassages:
 		var passages []model.Passage
-		if err := jsoniter.Unmarshal(respBody, &passages); err != nil {
+		if err := jsoniter.NewDecoder(reqBody).Decode(&passages); err != nil {
 			return err
 		}
 		var serverPassages []server.Passage
