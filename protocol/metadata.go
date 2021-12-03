@@ -42,7 +42,7 @@ func ParseMetadata(tgt string) (mdata Metadata, err error) {
 	}
 	port, err := strconv.Atoi(strPort)
 	if err != nil {
-		return mdata, err
+		return mdata, fmt.Errorf("failed to parse port: %w", err)
 	}
 	tgtIP, err := netaddr.ParseIP(host)
 	var typ MetadataType

@@ -30,9 +30,10 @@ func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, e
 	}
 	//log.Trace("vmess.NewDialer: metadata: %v, password: %v", metadata, password)
 	return &Dialer{
-		nextDialer: nextDialer,
-		metadata:   metadata,
-		key:        NewID(id).CmdKey(),
+		proxyAddress: header.ProxyAddress,
+		nextDialer:   nextDialer,
+		metadata:     metadata,
+		key:          NewID(id).CmdKey(),
 	}, nil
 }
 
