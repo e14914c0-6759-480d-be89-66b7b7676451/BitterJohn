@@ -90,7 +90,11 @@ func (s *Server) handleConn(conn net.Conn) error {
 			return fmt.Errorf("relay error: %w", err)
 		}
 	case "udp":
-		rConn, err := dialer.Dial("udp", target)
+		udpAddr, err := net.ResolveUDPAddr("udp", target)
+		if err != nil {
+			return err
+		}
+		rConn, err := dialer.Dial("udp", udpAddr.String())
 		if err != nil {
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
@@ -99,7 +103,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 			return err
 		}
 		//log.Trace("rConn.RemoteAddr(): %v", rConn.RemoteAddr())
-		if err = relayUoT(rConn.(net.PacketConn), rConn.RemoteAddr(), lConn); err != nil {
+		if err = relayUoT(rConn.(net.PacketConn), udpAddr, lConn); err != nil {
 			var netErr net.Error
 			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
 				return nil // ignore i/o timeout
@@ -212,7 +216,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	return err
 }
 
-func relayConnToUDP(dst net.PacketConn, raddr net.Addr, src *vmess.Conn, timeout time.Duration) (err error) {
+func relayConnToUDP(dst net.PacketConn, raddr *net.UDPAddr, src *vmess.Conn, timeout time.Duration) (err error) {
 	var n int
 	buf := pool.Get(vmess.MaxUDPSize)
 	defer pool.Put(buf)
@@ -223,12 +227,7 @@ func relayConnToUDP(dst net.PacketConn, raddr net.Addr, src *vmess.Conn, timeout
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-		tcpAddr := raddr.(*net.TCPAddr)
-		_, err = dst.WriteTo(buf[:n], &net.UDPAddr{
-			IP:   tcpAddr.IP,
-			Port: tcpAddr.Port,
-			Zone: tcpAddr.Zone,
-		})
+		_, err = dst.WriteTo(buf[:n], raddr)
 		// WARNING: if the dst is an pre-connected conn, Write should be invoked here.
 		if errors.Is(err, net.ErrWriteToConnected) {
 			log.Error("relayConnToUDP: %v", err)
@@ -239,7 +238,7 @@ func relayConnToUDP(dst net.PacketConn, raddr net.Addr, src *vmess.Conn, timeout
 	}
 }
 
-func relayUoT(rConn net.PacketConn, raddr net.Addr, lConn *vmess.Conn) (err error) {
+func relayUoT(rConn net.PacketConn, raddr *net.UDPAddr, lConn *vmess.Conn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
 		e := relayConnToUDP(rConn, raddr, lConn, server.DefaultNatTimeout)
