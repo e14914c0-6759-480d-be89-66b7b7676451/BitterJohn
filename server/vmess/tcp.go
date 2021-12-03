@@ -223,7 +223,12 @@ func relayConnToUDP(dst net.PacketConn, raddr net.Addr, src *vmess.Conn, timeout
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-		_, err = dst.WriteTo(buf[:n], raddr)
+		tcpAddr := raddr.(*net.TCPAddr)
+		_, err = dst.WriteTo(buf[:n], &net.UDPAddr{
+			IP:   tcpAddr.IP,
+			Port: tcpAddr.Port,
+			Zone: tcpAddr.Zone,
+		})
 		// WARNING: if the dst is an pre-connected conn, Write should be invoked here.
 		if errors.Is(err, net.ErrWriteToConnected) {
 			log.Error("relayConnToUDP: %v", err)

@@ -82,7 +82,7 @@ func (c *PrivateLimitedUDPConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	}
 	a, ok := addr.(*net.UDPAddr)
 	if !ok {
-		return 0, fmt.Errorf("addr is not net.UDPAddr")
+		return 0, fmt.Errorf("addr is not *net.UDPAddr")
 	}
 	if common.IsPrivate(a.IP) {
 		return 0, ErrDialPrivateAddress

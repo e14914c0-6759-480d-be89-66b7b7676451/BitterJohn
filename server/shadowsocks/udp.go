@@ -17,7 +17,7 @@ import (
 
 func (s *Server) handleUDP(lAddr net.Addr, data []byte) (err error) {
 	// get conn or dial and relay
-	rc, passage, plainText, target, err := s.GetOrBuildUCPConn(lAddr, data)
+	rc, passage, plainText, target, err := s.GetOrBuildUDPConn(lAddr, data)
 	if err != nil {
 		return fmt.Errorf("auth fail from: %v: %w", lAddr.String(), err)
 	}
@@ -53,9 +53,9 @@ func selectTimeout(packet []byte) time.Duration {
 	return server.SelectTimeout(packet)
 }
 
-// GetOrBuildUCPConn get a UDP conn from the mapping.
+// GetOrBuildUDPConn get a UDP conn from the mapping.
 // plainText is from pool and starts with metadata. Please MUST put it back.
-func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc net.PacketConn, passage *Passage, plainText []byte, target string, err error) {
+func (s *Server) GetOrBuildUDPConn(lAddr net.Addr, data []byte) (rc net.PacketConn, passage *Passage, plainText []byte, target string, err error) {
 	var conn *UDPConn
 	var ok bool
 
@@ -104,7 +104,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 			s.nm.Lock()
 			s.nm.Remove(connIdent) // close channel to inform that establishment ends
 			s.nm.Unlock()
-			return nil, nil, nil, "", fmt.Errorf("GetOrBuildUCPConn dial error: %w", err)
+			return nil, nil, nil, "", fmt.Errorf("GetOrBuildUDPConn dial error: %w", err)
 		}
 		rc = c.(net.PacketConn)
 		s.nm.Lock()
@@ -127,7 +127,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 		<-conn.Establishing
 		if conn.PacketConn == nil {
 			// establishment ended and retrieve the result
-			return s.GetOrBuildUCPConn(lAddr, data)
+			return s.GetOrBuildUDPConn(lAddr, data)
 		} else {
 			// establishment succeeded
 			rc = conn.PacketConn
