@@ -22,7 +22,7 @@ func SelectTimeout(packet []byte) time.Duration {
 	return DnsQueryTimeout
 }
 
-func RelayUDP(dst *net.UDPConn, laddr net.Addr, src *net.UDPConn, timeout time.Duration) (err error) {
+func RelayUDP(dst *net.UDPConn, laddr net.Addr, src net.PacketConn, timeout time.Duration) (err error) {
 	var n int
 	buf := pool.Get(ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)

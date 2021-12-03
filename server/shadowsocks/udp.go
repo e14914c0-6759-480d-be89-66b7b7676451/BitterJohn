@@ -77,11 +77,7 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 	if err != nil {
 		return nil, nil, nil, "", err
 	}
-	if passage.Out == nil {
-		target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
-	} else {
-		target = net.JoinHostPort(passage.Out.Host, passage.Out.Port)
-	}
+	target = net.JoinHostPort(targetMetadata.Hostname, strconv.Itoa(int(targetMetadata.Port)))
 
 	connIdent := lAddr.String()
 	s.nm.Lock()
@@ -93,10 +89,12 @@ func (s *Server) GetOrBuildUCPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 		// dial
 		dialer := s.dialer
 		if passage.Out != nil {
-			targetMetadata.IsClient = true
-			targetMetadata.Cipher = passage.Out.Method
-			targetMetadata.Network = "udp"
-			dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, targetMetadata.Metadata, passage.Out.Password)
+			dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, protocol.Header{
+				ProxyAddress: net.JoinHostPort(passage.Out.Host, passage.Out.Port),
+				Cipher:       passage.Out.Method,
+				Password:     passage.Out.Password,
+				IsClient:     true,
+			})
 			if err != nil {
 				return nil, nil, nil, "", err
 			}

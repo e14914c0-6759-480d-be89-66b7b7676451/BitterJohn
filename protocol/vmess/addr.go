@@ -63,7 +63,8 @@ func NetworkToByte(network string) byte {
 type Metadata struct {
 	protocol.Metadata
 
-	authedCmdKey  [16]byte
+	Network      string
+	authedCmdKey [16]byte
 	authedEAuthID [16]byte
 }
 

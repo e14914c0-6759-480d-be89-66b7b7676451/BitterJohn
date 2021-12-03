@@ -12,15 +12,19 @@ func init() {
 }
 
 type Dialer struct {
-	nextDialer proxy.Dialer
-	metadata   protocol.Metadata
-	key        []byte
+	proxyAddress string
+	nextDialer   proxy.Dialer
+	metadata     protocol.Metadata
+	key          []byte
 }
 
-func NewDialer(nextDialer proxy.Dialer, metadata protocol.Metadata, password string) (proxy.Dialer, error) {
-	cipher, _ := ParseCipherFromSecurity(Cipher(metadata.Cipher).ToSecurity())
+func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, error) {
+	metadata := protocol.Metadata{
+		IsClient: header.IsClient,
+	}
+	cipher, _ := ParseCipherFromSecurity(Cipher(header.Cipher).ToSecurity())
 	metadata.Cipher = string(cipher)
-	id, err := uuid.Parse(password)
+	id, err := uuid.Parse(header.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -35,12 +39,21 @@ func NewDialer(nextDialer proxy.Dialer, metadata protocol.Metadata, password str
 func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 	switch network {
 	case "tcp", "udp":
-		conn, err := d.nextDialer.Dial("tcp", addr)
+		mdata, err := protocol.ParseMetadata(addr)
 		if err != nil {
 			return nil, err
 		}
+		mdata.Cipher = d.metadata.Cipher
+		mdata.IsClient = d.metadata.IsClient
+
+		conn, err := d.nextDialer.Dial("tcp", d.proxyAddress)
+		if err != nil {
+			return nil, err
+		}
+
 		return NewConn(conn, Metadata{
-			Metadata: d.metadata,
+			Metadata: mdata,
+			Network:  network,
 		}, d.key)
 	default:
 		return nil, net.UnknownNetworkError(network)

@@ -1,12 +1,18 @@
 package protocol
 
+import (
+	"fmt"
+	"inet.af/netaddr"
+	"net"
+	"strconv"
+)
+
 type Metadata struct {
 	Type     MetadataType
 	Hostname string
 	Port     uint16
 	// Cmd is valid only if Type is MetadataTypeMsg.
 	Cmd      MetadataCmd
-	Network  string
 	Cipher   string
 	IsClient bool
 }
@@ -28,3 +34,28 @@ const (
 	MetadataTypeMsg
 	MetadataTypeInvalid
 )
+
+func ParseMetadata(tgt string) (mdata Metadata, err error) {
+	host, strPort, err := net.SplitHostPort(tgt)
+	if err != nil {
+		return mdata, fmt.Errorf("SplitHostPort: %w", err)
+	}
+	port, err := strconv.Atoi(strPort)
+	if err != nil {
+		return mdata, err
+	}
+	tgtIP, err := netaddr.ParseIP(host)
+	var typ MetadataType
+	if err != nil {
+		typ = MetadataTypeDomain
+	} else if tgtIP.Is4() {
+		typ = MetadataTypeIPv4
+	} else {
+		typ = MetadataTypeIPv6
+	}
+	return Metadata{
+		Type:     typ,
+		Hostname: host,
+		Port:     uint16(port),
+	}, nil
+}
