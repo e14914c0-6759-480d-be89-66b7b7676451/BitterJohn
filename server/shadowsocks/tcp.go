@@ -159,7 +159,7 @@ func (s *Server) handleTCP(conn net.Conn) error {
 		if errors.As(err, &netErr) && netErr.Timeout() {
 			return nil // ignore i/o timeout
 		}
-		return fmt.Errorf("handleConn relay error: %w", err)
+		return fmt.Errorf("handleTCP relay error: %w", err)
 	}
 	return nil
 }

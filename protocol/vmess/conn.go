@@ -55,7 +55,8 @@ type Conn struct {
 }
 
 func NewConn(conn net.Conn, metadata Metadata, cmdKey []byte) (c *Conn, err error) {
-	key := pool.Get(len(cmdKey))
+	// DO NOT use pool here because Close() cannot interrupt the reading or writing, which will modify the value of the pool buffer.
+	key := make([]byte, len(cmdKey))
 	copy(key, cmdKey)
 	return &Conn{
 		Conn:     conn,
@@ -65,7 +66,6 @@ func NewConn(conn net.Conn, metadata Metadata, cmdKey []byte) (c *Conn, err erro
 }
 
 func (c *Conn) Close() error {
-	pool.Put(c.cmdKey)
 	return c.Conn.Close()
 }
 

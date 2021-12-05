@@ -71,15 +71,16 @@ func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, blo
 	if conf.NewCipher == nil {
 		return nil, fmt.Errorf("invalid CipherConf")
 	}
-	key := pool.Get(len(masterKey))
+	// DO NOT use pool here because Close() cannot interrupt the reading or writing, which will modify the value of the pool buffer.
+	key := make([]byte, len(masterKey))
 	copy(key, masterKey)
 	c := TCPConn{
 		Conn:       conn,
 		metadata:   metadata,
 		cipherConf: conf,
 		masterKey:  key,
-		nonceRead:  pool.GetZero(conf.NonceLen),
-		nonceWrite: pool.GetZero(conf.NonceLen),
+		nonceRead:  make([]byte, conf.NonceLen),
+		nonceWrite: make([]byte, conf.NonceLen),
 		bloom:      bloom,
 	}
 	if metadata.IsClient {
@@ -108,9 +109,6 @@ func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, blo
 }
 
 func (c *TCPConn) Close() error {
-	pool.Put(c.nonceWrite)
-	pool.Put(c.nonceRead)
-	pool.Put(c.masterKey)
 	return c.Conn.Close()
 }
 
@@ -128,6 +126,7 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 				return
 			}
 		}
+		//log.Warn("salt: %v", hex.EncodeToString(salt))
 		subKey := pool.Get(c.cipherConf.KeyLen)
 		defer pool.Put(subKey)
 		kdf := hkdf.New(
@@ -182,12 +181,13 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 func (c *TCPConn) readChunkFromPool() ([]byte, error) {
 	bufLen := pool.Get(2 + c.cipherConf.TagLen)
 	defer pool.Put(bufLen)
+	//log.Warn("len(bufLen): %v, c.nonceRead: %v", len(bufLen), c.nonceRead)
 	if _, err := io.ReadFull(c.Conn, bufLen); err != nil {
 		return nil, err
 	}
 	bLenPayload, err := c.cipherRead.Open(bufLen[:0], c.nonceRead, bufLen, nil)
 	if err != nil {
-		log.Warn("%v: %v", server.ErrFailAuth, err)
+		log.Warn("read length of payload: %v: %v", server.ErrFailAuth, err)
 		return nil, server.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
@@ -198,7 +198,7 @@ func (c *TCPConn) readChunkFromPool() ([]byte, error) {
 	}
 	payload, err := c.cipherRead.Open(bufPayload[:0], c.nonceRead, bufPayload, nil)
 	if err != nil {
-		log.Warn("%v: %v", server.ErrFailAuth, err)
+		log.Warn("read payload: %v: %v", server.ErrFailAuth, err)
 		return nil, server.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
