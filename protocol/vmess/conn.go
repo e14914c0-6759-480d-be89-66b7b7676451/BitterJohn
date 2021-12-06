@@ -9,10 +9,8 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 )
 
@@ -58,11 +56,15 @@ func NewConn(conn net.Conn, metadata Metadata, cmdKey []byte) (c *Conn, err erro
 	// DO NOT use pool here because Close() cannot interrupt the reading or writing, which will modify the value of the pool buffer.
 	key := make([]byte, len(cmdKey))
 	copy(key, cmdKey)
-	return &Conn{
+	c = &Conn{
 		Conn:     conn,
 		metadata: metadata,
 		cmdKey:   key,
-	}, nil
+	}
+	if err = c.WriteReqHeader(); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 func (c *Conn) Close() error {
@@ -172,41 +174,46 @@ func (c *Conn) InitContext(instructionData []byte) error {
 	return nil
 }
 
+func (c *Conn) WriteReqHeader() (err error) {
+	c.initWrite.Do(func() {
+		instructionData := ReqInstructionDataFromPool(c.metadata)
+		defer pool.Put(instructionData)
+
+		if err = c.InitContext(instructionData); err != nil {
+			return
+		}
+
+		var header []byte
+		if header, err = EncryptReqHeaderFromPool(instructionData, c.cmdKey); err != nil {
+			return
+		}
+		defer pool.Put(header)
+		if c.writeBodyCipher, err = c.NewAEAD(c.requestBodyKey[:]); err != nil {
+			return
+		}
+
+		if ContainOption(c.requestOptions, OptionChunkLengthMasking) {
+			c.writeChunkSizeParser = NewShakeSizeParser(c.requestBodyIV[:])
+			if ContainOption(c.requestOptions, OptionGlobalPadding) {
+				c.writePaddingGenerator = c.writeChunkSizeParser.(PaddingLengthGenerator)
+			}
+		} else {
+			c.writeChunkSizeParser = PlainChunkSizeParser{}
+		}
+		if c.writePaddingGenerator == nil {
+			c.writePaddingGenerator = PlainPaddingGenerator{}
+		}
+		c.writeNonceGenerator = GenerateChunkNonce(c.requestBodyIV[:], uint32(c.writeBodyCipher.NonceSize()))
+		_, err = c.Conn.Write(header)
+	})
+	return err
+}
+
 // Write writes data to the connection. Empty b should be written before closing the connection to indicate the terminal.
 func (c *Conn) Write(b []byte) (n int, err error) {
 	var encRespHeader []byte
 	c.initWrite.Do(func() {
-		if c.metadata.IsClient {
-			instructionData := ReqInstructionDataFromPool(c.metadata)
-			defer pool.Put(instructionData)
-
-			if err = c.InitContext(instructionData); err != nil {
-				return
-			}
-
-			var header []byte
-			if header, err = EncryptReqHeaderFromPool(instructionData, c.cmdKey); err != nil {
-				return
-			}
-			defer pool.Put(header)
-			if c.writeBodyCipher, err = c.NewAEAD(c.requestBodyKey[:]); err != nil {
-				return
-			}
-
-			if ContainOption(c.requestOptions, OptionChunkLengthMasking) {
-				c.writeChunkSizeParser = NewShakeSizeParser(c.requestBodyIV[:])
-				if ContainOption(c.requestOptions, OptionGlobalPadding) {
-					c.writePaddingGenerator = c.writeChunkSizeParser.(PaddingLengthGenerator)
-				}
-			} else {
-				c.writeChunkSizeParser = PlainChunkSizeParser{}
-			}
-			if c.writePaddingGenerator == nil {
-				c.writePaddingGenerator = PlainPaddingGenerator{}
-			}
-			c.writeNonceGenerator = GenerateChunkNonce(c.requestBodyIV[:], uint32(c.writeBodyCipher.NonceSize()))
-			_, err = c.Conn.Write(header)
-		} else {
+		if !c.metadata.IsClient {
 			header := RespHeaderFromPool(c.responseAuth)
 			defer pool.Put(header)
 			encRespHeader, err = c.EncryptRespHeaderFromPool(header)
@@ -407,41 +414,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 		pool.Put(chunk)
 	}
 	return n, nil
-}
-
-func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	// FIXME: a compromise on Symmetric NAT
-	if c.cachedRAddrIP == nil {
-		c.cachedRAddrIP, err = net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
-		if err != nil {
-			return 0, nil, err
-		}
-	}
-	addr = c.cachedRAddrIP
-	n, err = c.Read(p)
-	return n, addr, err
-}
-
-func (c *Conn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	return c.Write(p)
-}
-
-func (c *Conn) LocalAddr() net.Addr {
-	switch c.metadata.Network {
-	case "udp":
-		return protocol.TCPAddrToUDPAddr(c.Conn.LocalAddr().(*net.TCPAddr))
-	default:
-		return c.Conn.LocalAddr()
-	}
-}
-
-func (c *Conn) RemoteAddr() net.Addr {
-	switch c.metadata.Network {
-	case "udp":
-		return protocol.TCPAddrToUDPAddr(c.Conn.RemoteAddr().(*net.TCPAddr))
-	default:
-		return c.Conn.RemoteAddr()
-	}
 }
 
 func (c *Conn) Metadata() Metadata {

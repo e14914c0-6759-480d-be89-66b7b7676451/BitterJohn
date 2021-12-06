@@ -26,10 +26,10 @@ func TestClientConn(t *testing.T) {
 			Type:     protocol.MetadataTypeDomain,
 			Hostname: "www.qq.com",
 			Port:     443,
-			Network:  "tcp",
 			Cipher:   string(CipherC20P1305),
 			IsClient: true,
 		},
+		Network:  "tcp",
 	}, NewID(id).CmdKey())
 	defer conn.Close()
 	conn = tls.Client(conn, &tls.Config{

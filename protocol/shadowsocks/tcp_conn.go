@@ -85,7 +85,7 @@ func NewTCPConn(conn net.Conn, metadata protocol.Metadata, masterKey []byte, blo
 	}
 	if metadata.IsClient {
 		time.AfterFunc(100*time.Millisecond, func() {
-			// avoid the situation where the server actively sends messages
+			// avoid the situation where the server sends messages first
 			c.onceWriteMutex.Lock()
 			if !c.onceWrite {
 				buf, offset, toWrite, err := c.initWriteFromPool(nil)

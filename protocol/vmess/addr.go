@@ -90,7 +90,7 @@ func (m *Metadata) AddrLen() int {
 	case protocol.MetadataTypeIPv6:
 		return 16
 	case protocol.MetadataTypeDomain:
-		return 1 + len(m.Hostname)
+		return 1 + len([]byte(m.Hostname))
 	case protocol.MetadataTypeMsg:
 		return 1
 	default:
@@ -104,12 +104,12 @@ func (m *Metadata) PutAddr(dst []byte) (n int) {
 		copy(dst, net.ParseIP(m.Hostname).To4()[:4])
 		return 4
 	case protocol.MetadataTypeIPv6:
-		copy(dst[1:], net.ParseIP(m.Hostname)[:16])
+		copy(dst, net.ParseIP(m.Hostname)[:16])
 		return 16
 	case protocol.MetadataTypeDomain:
 		dst[0] = byte(len([]byte(m.Hostname)))
 		copy(dst[1:], m.Hostname)
-		return 1 + len(m.Hostname)
+		return 1 + int(dst[0])
 	case protocol.MetadataTypeMsg:
 		dst[0] = byte(m.Cmd)
 		return 1
