@@ -2,6 +2,7 @@ package vmess
 
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/common"
 	"github.com/google/uuid"
 	"golang.org/x/net/proxy"
 	"net"
@@ -24,7 +25,13 @@ func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, e
 	}
 	cipher, _ := ParseCipherFromSecurity(Cipher(header.Cipher).ToSecurity())
 	metadata.Cipher = string(cipher)
+
+	// UUID mapping
+	if l := len([]byte(header.Password)); l < 32 || l > 36 {
+		header.Password = common.StringToUUID5(header.Password)
+	}
 	id, err := uuid.Parse(header.Password)
+
 	if err != nil {
 		return nil, err
 	}
