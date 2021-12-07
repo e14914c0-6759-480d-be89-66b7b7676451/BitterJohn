@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"io"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ type Conn struct {
 }
 
 func NewConn(conn net.Conn, metadata Metadata, password string) (c *Conn, err error) {
+	log.Println("?!!")
 	hash := sha256.New224()
 	hash.Write([]byte(password))
 	c = &Conn{
@@ -75,12 +77,14 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	c.onceWriteMutex.Lock()
 	if !c.onceWrite {
 		if c.metadata.IsClient {
+			log.Println("0!!")
 			defer c.onceWriteMutex.Unlock()
 			buf := c.reqHeaderFromPool(b)
 			defer pool.Put(buf)
 			if _, err = c.Conn.Write(buf); err != nil {
-				return 0, err
+				return 0, fmt.Errorf("write header: %w", err)
 			}
+			log.Println("1!!")
 			c.onceWrite = true
 			return len(b), nil
 		}

@@ -1,15 +1,14 @@
-package vmess
+package trojanc
 
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/common"
-	"github.com/google/uuid"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"golang.org/x/net/proxy"
 	"net"
 )
 
 func init() {
-	protocol.Register("vmess", NewDialer)
+	protocol.Register("vless", NewDialer)
 }
 
 type Dialer struct {
@@ -23,24 +22,16 @@ func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, e
 	metadata := protocol.Metadata{
 		IsClient: header.IsClient,
 	}
-	cipher, _ := ParseCipherFromSecurity(Cipher(header.Cipher).ToSecurity())
-	metadata.Cipher = string(cipher)
-
-	// UUID mapping
-	if l := len([]byte(header.Password)); l < 32 || l > 36 {
-		header.Password = common.StringToUUID5(header.Password)
-	}
-
-	id, err := uuid.Parse(header.Password)
+	//log.Trace("vless.NewDialer: metadata: %v, password: %v", metadata, password)
+	id, err := Password2Key(header.Password)
 	if err != nil {
 		return nil, err
 	}
-	//log.Trace("vmess.NewDialer: metadata: %v, password: %v", metadata, password)
 	return &Dialer{
 		proxyAddress: header.ProxyAddress,
 		nextDialer:   nextDialer,
 		metadata:     metadata,
-		key:          NewID(id).CmdKey(),
+		key:          id,
 	}, nil
 }
 
@@ -51,7 +42,6 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 		if err != nil {
 			return nil, err
 		}
-		mdata.Cipher = d.metadata.Cipher
 		mdata.IsClient = d.metadata.IsClient
 
 		conn, err := d.nextDialer.Dial("tcp", d.proxyAddress)
@@ -59,7 +49,7 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 			return nil, err
 		}
 
-		return NewConn(conn, Metadata{
+		return NewConn(conn, vmess.Metadata{
 			Metadata: mdata,
 			Network:  network,
 		}, d.key)
