@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/sha1"
+	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/crypto/chacha20poly1305"
@@ -135,6 +136,9 @@ func EncryptUDPFromPool(key Key, b []byte) (shadowBytes []byte, err error) {
 
 // DecryptUDP will decrypt the data in place
 func DecryptUDP(key Key, shadowBytes []byte) (n int, err error) {
+	if len(shadowBytes) < 32 {
+		return 0, fmt.Errorf("short length to decrypt")
+	}
 	subKey := pool.Get(key.CipherConf.KeyLen)
 	defer pool.Put(subKey)
 	kdf := hkdf.New(
