@@ -61,8 +61,10 @@ func NewConn(conn net.Conn, metadata Metadata, cmdKey []byte) (c *Conn, err erro
 		metadata: metadata,
 		cmdKey:   key,
 	}
-	if err = c.WriteReqHeader(); err != nil {
-		return nil, err
+	if metadata.IsClient {
+		if err = c.WriteReqHeader(); err != nil {
+			return nil, err
+		}
 	}
 	return c, nil
 }
