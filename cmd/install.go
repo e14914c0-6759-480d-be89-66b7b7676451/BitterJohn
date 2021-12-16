@@ -342,7 +342,8 @@ func writeFiles(f embed.FS, configFilePath string, params *config.Params, servic
 		if err = os.WriteFile(configFilePath, b, 0644); err != nil {
 			return err
 		}
-		runningArgs = append(runningArgs, fmt.Sprintf("--config=%v", strconv.Quote(configFilePath)))
+		// WARN: do not escape here to be compatible with linux 3.10
+		runningArgs = append(runningArgs, fmt.Sprintf("--config=%v", configFilePath))
 	}
 	serviceArgs["Args"] = runningArgs
 
