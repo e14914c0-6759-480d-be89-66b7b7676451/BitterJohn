@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	disk_bloom "github.com/mzz2017/disk-bloom"
@@ -186,7 +185,7 @@ func (c *TCPConn) readChunkFromPool() ([]byte, error) {
 	}
 	bLenPayload, err := c.cipherRead.Open(bufLen[:0], c.nonceRead, bufLen, nil)
 	if err != nil {
-		log.Warn("read length of payload: %v: %v", protocol.ErrFailAuth, err)
+		//log.Warn("read length of payload: %v: %v", protocol.ErrFailAuth, err)
 		return nil, protocol.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
@@ -197,7 +196,7 @@ func (c *TCPConn) readChunkFromPool() ([]byte, error) {
 	}
 	payload, err := c.cipherRead.Open(bufPayload[:0], c.nonceRead, bufPayload, nil)
 	if err != nil {
-		log.Warn("read payload: %v: %v", protocol.ErrFailAuth, err)
+		//log.Warn("read payload: %v: %v", protocol.ErrFailAuth, err)
 		return nil, protocol.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
