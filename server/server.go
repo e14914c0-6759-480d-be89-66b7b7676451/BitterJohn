@@ -13,9 +13,7 @@ import (
 const LostThreshold = 5 * time.Minute
 
 var (
-	ErrFailAuth     = fmt.Errorf("fail to authenticate")
 	ErrPassageAbuse = fmt.Errorf("passage abuse")
-	ErrReplayAttack = fmt.Errorf("replay attack")
 )
 
 type Argument struct {

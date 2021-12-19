@@ -11,7 +11,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"golang.org/x/crypto/chacha20poly1305"
 	"hash"
 	"hash/crc32"
@@ -139,11 +139,11 @@ func AuthEAuthID(blk cipher.Block, eAuthID []byte, doubleCuckoo *ReplayFilter, s
 		threshold = 3 * (now - startTimestamp)
 	}
 	if common.Abs64(now-t) > threshold {
-		return fmt.Errorf("%w: time exceed", server.ErrFailAuth)
+		return fmt.Errorf("%w: time exceed", protocol.ErrFailAuth)
 	}
 
 	if !doubleCuckoo.Check(eAuthID) {
-		return fmt.Errorf("%w: repeated EAuthID", server.ErrReplayAttack)
+		return fmt.Errorf("%w: repeated EAuthID", protocol.ErrReplayAttack)
 	}
 
 	return nil

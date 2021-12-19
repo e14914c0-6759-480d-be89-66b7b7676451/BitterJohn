@@ -9,6 +9,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
@@ -91,7 +92,7 @@ func (s *Server) Listen(addr string) (err error) {
 			err := s.handleConn(conn)
 			if err != nil {
 				if errors.Is(err, server.ErrPassageAbuse) ||
-					errors.Is(err, server.ErrReplayAttack) {
+					errors.Is(err, protocol.ErrReplayAttack) {
 					log.Warn("handleConn: %v", err)
 				} else {
 					log.Info("handleConn: %v", err)

@@ -81,7 +81,7 @@ func (s *Server) handleMsg(crw *shadowsocks.TCPConn, reqMetadata *shadowsocks.Me
 
 		resp = []byte("OK")
 	default:
-		return fmt.Errorf("%w: unexpected metadata cmd type: %v", server.ErrFailAuth, reqMetadata.Cmd)
+		return fmt.Errorf("%w: unexpected metadata cmd type: %v", protocol.ErrFailAuth, reqMetadata.Cmd)
 	}
 
 	_, err := crw.Write(resp)
@@ -177,11 +177,11 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 		return s.probeTCP(buf, data, passage)
 	})
 	if passage == nil {
-		return nil, server.ErrFailAuth
+		return nil, protocol.ErrFailAuth
 	}
 	// check bloom
 	if exist := s.bloom.Exist(data[:shadowsocks.CiphersConf[passage.In.Method].SaltLen]); exist {
-		return nil, server.ErrReplayAttack
+		return nil, protocol.ErrReplayAttack
 	}
 	return passage, nil
 }

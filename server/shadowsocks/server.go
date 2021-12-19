@@ -11,6 +11,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
@@ -179,7 +180,7 @@ func (s *Server) ListenTCP(addr string) (err error) {
 			err := s.handleTCP(conn)
 			if err != nil {
 				if errors.Is(err, server.ErrPassageAbuse) ||
-					errors.Is(err, server.ErrReplayAttack) {
+					errors.Is(err, protocol.ErrReplayAttack) {
 					log.Warn("handleTCP: %v", err)
 				} else {
 					log.Info("handleTCP: %v", err)

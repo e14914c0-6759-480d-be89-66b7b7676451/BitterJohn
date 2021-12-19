@@ -213,11 +213,11 @@ func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (pas
 		return probeUDP(buf, data, passage)
 	})
 	if passage == nil {
-		return nil, nil, server.ErrFailAuth
+		return nil, nil, protocol.ErrFailAuth
 	}
 	// check bloom
 	if exist := s.bloom.ExistOrAdd(data[:shadowsocks.CiphersConf[passage.In.Method].SaltLen]); exist {
-		return nil, nil, server.ErrReplayAttack
+		return nil, nil, protocol.ErrReplayAttack
 	}
 	return passage, content, nil
 }

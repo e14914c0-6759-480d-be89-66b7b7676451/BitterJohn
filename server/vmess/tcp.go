@@ -130,13 +130,13 @@ func (s *Server) authFromPool(conn net.Conn) (passage *Passage, eAuthID []byte, 
 		}
 		return nil, false
 	})
-	if errors.Is(err, server.ErrReplayAttack) || errors.Is(err, server.ErrFailAuth) {
+	if errors.Is(err, protocol.ErrReplayAttack) || errors.Is(err, protocol.ErrFailAuth) {
 		pool.Put(eAuthID)
 		return nil, nil, err
 	}
 	if hit == nil {
 		pool.Put(eAuthID)
-		return nil, nil, fmt.Errorf("%w: not found", server.ErrFailAuth)
+		return nil, nil, fmt.Errorf("%w: not found", protocol.ErrFailAuth)
 	}
 	return hit, eAuthID, nil
 }
@@ -206,7 +206,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 		defer pool.Put(resp)
 		copy(resp, "OK")
 	default:
-		return fmt.Errorf("%w: unexpected metadata cmd type: %v", server.ErrFailAuth, reqMetadata.Cmd)
+		return fmt.Errorf("%w: unexpected metadata cmd type: %v", protocol.ErrFailAuth, reqMetadata.Cmd)
 	}
 	buf := pool.Get(len(resp) + 4)
 	defer pool.Put(buf)

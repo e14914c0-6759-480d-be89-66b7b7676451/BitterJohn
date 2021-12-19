@@ -11,7 +11,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	disk_bloom "github.com/mzz2017/disk-bloom"
 	"golang.org/x/crypto/hkdf"
 	"hash"
@@ -122,7 +121,7 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 		}
 		if c.bloom != nil {
 			if c.bloom.ExistOrAdd(salt) {
-				err = server.ErrReplayAttack
+				err = protocol.ErrReplayAttack
 				return
 			}
 		}
@@ -142,7 +141,7 @@ func (c *TCPConn) Read(b []byte) (n int, err error) {
 		c.cipherRead, err = c.cipherConf.NewCipher(subKey)
 	})
 	if c.cipherRead == nil {
-		if errors.Is(err, server.ErrReplayAttack) {
+		if errors.Is(err, protocol.ErrReplayAttack) {
 			return 0, fmt.Errorf("%v: %w", ErrFailInitCihper, err)
 		}
 		return 0, fmt.Errorf("%w: %v", ErrFailInitCihper, err)
@@ -187,8 +186,8 @@ func (c *TCPConn) readChunkFromPool() ([]byte, error) {
 	}
 	bLenPayload, err := c.cipherRead.Open(bufLen[:0], c.nonceRead, bufLen, nil)
 	if err != nil {
-		log.Warn("read length of payload: %v: %v", server.ErrFailAuth, err)
-		return nil, server.ErrFailAuth
+		log.Warn("read length of payload: %v: %v", protocol.ErrFailAuth, err)
+		return nil, protocol.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
 	lenPayload := binary.BigEndian.Uint16(bLenPayload)
@@ -198,8 +197,8 @@ func (c *TCPConn) readChunkFromPool() ([]byte, error) {
 	}
 	payload, err := c.cipherRead.Open(bufPayload[:0], c.nonceRead, bufPayload, nil)
 	if err != nil {
-		log.Warn("read payload: %v: %v", server.ErrFailAuth, err)
-		return nil, server.ErrFailAuth
+		log.Warn("read payload: %v: %v", protocol.ErrFailAuth, err)
+		return nil, protocol.ErrFailAuth
 	}
 	common.BytesIncLittleEndian(c.nonceRead)
 	return payload, nil

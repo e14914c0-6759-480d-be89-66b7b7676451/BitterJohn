@@ -93,12 +93,14 @@ github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211019113435
 github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211019113859-3595f87fd1c7/go.mod h1:A5Hku0sXle6l1FJesa5mEwvV3PW+/hhixEX5RXTdLgc=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.0.0-20211020052956-c845ae4b5d3c/go.mod h1:/vH2ut9Xr9cbkj6Y/H3jhLi+nGm/3GiEiBDSQnTIXps=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v0.1.15/go.mod h1:npZTEDXjFBHEA7V30QL6G9qN/1C99+vCRk1haWZfHIs=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn v1.1.4/go.mod h1:2ZMHQaVrqAkQRQuvwA/5/fo1OYKXMe00KbZ2Xu3fyUc=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211018083001-b705b698c27c/go.mod h1:ZkjgqJg7FRdqsW+4TY23oSxgQtYgKPToUodILj/4wCQ=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211019113726-5f4cc4dfa31e/go.mod h1:8O6T24gnJ05eaz9nZH07AMpW7CaJTOWNu6AhCYaGMLM=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211020023854-3afe293c54f8/go.mod h1:mfceIZ5Jic8pFdkF0G7RE/852AhjycmKVR/P7iwa4fM=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211028080841-aede37595f6b/go.mod h1:i7UF/doyMQw/VTUoistuGcvttVhFNROBRRS3NDlt8ZE=
-github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211106045307-739b77368531 h1:lY4t3sokbrH239mzvlWMp8kurXoMZgmclL/KFPFlsHY=
 github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211106045307-739b77368531/go.mod h1:eQvYQUXaZ8LhTBy2v9es5y/zId5UOFP1PokzlX/ZZs4=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211214125323-be3eb47e560f h1:91/m3SXb2jeuYyTjc5b9sA3JBBxMYsqpGdnuVJ69PUY=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211214125323-be3eb47e560f/go.mod h1:ul2aMzgHg1rL6RH5MJ7C5qJyDNwjqaA1bVI6YHjdQy8=
 github.com/eknkc/basex v1.0.1 h1:TcyAkqh4oJXgV3WYyL4KEfCMk9W8oJCpmx1bo+jVgKY=
 github.com/eknkc/basex v1.0.1/go.mod h1:k/F/exNEHFdbs3ZHuasoP2E7zeWwZblG84Y7Z59vQRo=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
@@ -338,6 +340,7 @@ github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
 github.com/rogpeppe/go-internal v1.8.0 h1:FCbCCtXNOY3UtUuHUYaghJg4y7Fd14rXifAYUAtL9R8=
 github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6poM+XZ2dLUbcbE=
+github.com/rs/dnscache v0.0.0-20211102005908-e0241e321417/go.mod h1:qe5TWALJ8/a1Lqznoc5BDHpYX/8HU60Hm2AwRmqzxqA=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/sagikazarmark/crypt v0.1.0/go.mod h1:B/mN0msZuINBtQ1zZLEQcegFJJf9vnYIR88KRMEuODE=

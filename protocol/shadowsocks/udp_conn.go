@@ -3,7 +3,6 @@ package shadowsocks
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	disk_bloom "github.com/mzz2017/disk-bloom"
 	"inet.af/netaddr"
 	"net"
@@ -93,7 +92,7 @@ func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 	}
 	if c.bloom != nil {
 		if exist := c.bloom.ExistOrAdd(enc[:c.cipherConf.SaltLen]); exist {
-			err = server.ErrReplayAttack
+			err = protocol.ErrReplayAttack
 			return
 		}
 	}
