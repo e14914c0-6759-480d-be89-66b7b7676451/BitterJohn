@@ -1,8 +1,8 @@
 package vmess
 
 import (
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/common"
 	"github.com/google/uuid"
 	"golang.org/x/net/proxy"
 	"net"

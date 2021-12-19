@@ -136,7 +136,7 @@ func EncryptUDPFromPool(key Key, b []byte) (shadowBytes []byte, err error) {
 
 // DecryptUDP will decrypt the data in place
 func DecryptUDP(key Key, shadowBytes []byte) (n int, err error) {
-	if len(shadowBytes) < 32 {
+	if len(shadowBytes) < key.CipherConf.SaltLen {
 		return 0, fmt.Errorf("short length to decrypt")
 	}
 	subKey := pool.Get(key.CipherConf.KeyLen)
