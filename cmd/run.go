@@ -115,22 +115,25 @@ func Run() {
 			}
 			cdn, err = api.TrustedHost(ctx, config.ParamsObj.Lisa.Host, validateToken)
 			if err != nil {
-				if errors.Is(err, cdn_validator.ErrCanStealIP) {
+				switch {
+				case strings.Contains(err.Error(), "context deadline exceeded"):
+					// pass
+					log.Warn("%v: %v", cdn, err)
+				case errors.Is(err, cdn_validator.ErrCanStealIP):
 					close(done)
 					log.Error("%v: %v", cdn, err)
-				} else if errors.Is(err, cdn_validator.ErrFailedValidate) {
+				case errors.Is(err, cdn_validator.ErrFailedValidate):
 					atomic.AddUint32(&consecutiveFailure, 1)
 					if consecutiveFailure >= 3 {
 						log.Error("%v: %v", cdn, err)
 						// TODO: unregister and wait for recover
 					}
 				}
-				log.Warn("%v: %v", cdn, err)
 			} else {
 				consecutiveFailure = 0
 			}
 			cancel()
-			time.Sleep(time.Duration(fastrand.Intn(181)) * time.Second)
+			time.Sleep(30*time.Second + time.Duration(fastrand.Intn(151)) * time.Second)
 		}
 	}()
 

@@ -68,14 +68,14 @@ func Validate(ctx context.Context, domain string, token string) (cdnName string,
 		cdnNames = append(cdnNames, name)
 	}
 	cdnNames = common.Deduplicate(cdnNames)
-	for _,name:=range cdnNames{
+	for _, name := range cdnNames {
 		cdn, err := validatorMapping[name](token)
 		if err != nil {
 			return name, err
 		}
 		ok, err := cdn.Validate(ctx, domain)
 		if err != nil {
-			return name, fmt.Errorf("%w: %v", ErrFailedValidate, err)
+			return name, err
 		}
 		if !ok {
 			return name, ErrCanStealIP
