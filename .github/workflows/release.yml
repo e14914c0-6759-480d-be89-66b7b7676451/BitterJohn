@@ -46,8 +46,6 @@ jobs:
             export GOARCH=$(echo $osarch | cut -d/ -f2)
             echo "compiling $GOOS $GOARCH"
             CGO_ENABLED=0 go build -ldflags="-X github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/cmd.Version=$VERSION -s -w" -o BitterJohn_"$GOOS"_"$GOARCH"_"$VERSION"
-            upx --version
-            upx BitterJohn_"$GOOS"_"$GOARCH"_"$VERSION"
           done
       - name: Rename Binaries to Friendly Filenames
         run: |
