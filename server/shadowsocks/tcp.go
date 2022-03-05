@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
@@ -93,14 +94,22 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	passage, err := s.authTCP(bConn)
 	if err != nil {
 		// Auth fail. Drain the conn
-		io.Copy(io.Discard, bConn)
+		if config.ParamsObj.John.MaxDrainN == -1 {
+			io.Copy(io.Discard, bConn)
+		} else {
+			io.CopyN(io.Discard, bConn, config.ParamsObj.John.MaxDrainN)
+		}
 		bConn.Close()
 		return fmt.Errorf("auth fail: %w. Drained the conn from: %v", err, conn.RemoteAddr().String())
 	}
 
 	// detect passage contention
 	if err := s.ContentionCheck(conn.RemoteAddr().(*net.TCPAddr).IP, passage); err != nil {
-		io.Copy(io.Discard, bConn)
+		if config.ParamsObj.John.MaxDrainN == -1 {
+			io.Copy(io.Discard, bConn)
+		} else {
+			io.CopyN(io.Discard, bConn, config.ParamsObj.John.MaxDrainN)
+		}
 		bConn.Close()
 		return err
 	}

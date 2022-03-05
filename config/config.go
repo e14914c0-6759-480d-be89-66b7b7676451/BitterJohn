@@ -17,6 +17,8 @@ type John struct {
 
 	BandwidthLimit BandwidthLimit `json:"bandwidthLimit"`
 	NoRelay        bool           `json:"noRelay"`
+
+	MaxDrainN int64 `json:"maxDrainN" default:"-1" desc:"Max number of bytes to drain. default value is -1, which means unlimited."`
 }
 
 type BandwidthLimit struct {

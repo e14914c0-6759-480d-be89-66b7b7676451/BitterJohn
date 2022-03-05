@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
@@ -23,13 +24,21 @@ func (s *Server) handleConn(conn net.Conn) error {
 	passage, eAuthID, err := s.authFromPool(conn)
 	if err != nil {
 		// Auth fail. Drain the conn
-		io.Copy(io.Discard, conn)
+		if config.ParamsObj.John.MaxDrainN == -1 {
+			io.Copy(io.Discard, conn)
+		} else {
+			io.CopyN(io.Discard, conn, config.ParamsObj.John.MaxDrainN)
+		}
 		return fmt.Errorf("auth fail: %w. Drained the conn from: %v", err, conn.RemoteAddr().String())
 	}
 
 	// detect passage contention
 	if err := s.ContentionCheck(conn.RemoteAddr().(*net.TCPAddr).IP, passage); err != nil {
-		io.Copy(io.Discard, conn)
+		if config.ParamsObj.John.MaxDrainN == -1 {
+			io.Copy(io.Discard, conn)
+		} else {
+			io.CopyN(io.Discard, conn, config.ParamsObj.John.MaxDrainN)
+		}
 		return err
 	}
 	metadata := vmess.NewServerMetadata(passage.inCmdKey, eAuthID)
