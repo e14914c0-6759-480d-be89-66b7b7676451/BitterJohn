@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"embed"
@@ -14,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -204,12 +204,18 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		return nil, false, err
 	}
 	var hostname string
-	resp, err := http.Get("https://ipv4.appspot.com/")
+	resp, err := http.Get("https://api.cloudflare.com/cdn-cgi/trace")
 	if err == nil {
 		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
-			b, _ := io.ReadAll(resp.Body)
-			hostname = strings.TrimSpace(string(b))
+			scanner := bufio.NewScanner(resp.Body)
+			for scanner.Scan() {
+				if strings.HasPrefix(scanner.Text(), "ip=") {
+					hostname = strings.TrimPrefix(scanner.Text(), "ip=")
+					break
+				}
+			}
+			_ = resp.Body.Close()
 		}
 	}
 	prompt = &promptui.Prompt{
