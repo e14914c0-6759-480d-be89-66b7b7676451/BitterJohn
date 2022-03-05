@@ -206,7 +206,6 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	var hostname string
 	resp, err := http.Get("https://api.cloudflare.com/cdn-cgi/trace")
 	if err == nil {
-		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
 			scanner := bufio.NewScanner(resp.Body)
 			for scanner.Scan() {
