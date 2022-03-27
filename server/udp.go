@@ -1,11 +1,12 @@
 package server
 
 import (
+	"net"
+	"time"
+
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/net/dns/dnsmessage"
-	"net"
-	"time"
 )
 
 const (
@@ -42,16 +43,19 @@ func RelayUDP(dst *net.UDPConn, laddr net.Addr, src net.PacketConn, timeout time
 
 func RelayUDPToConn(dst net.Conn, src net.PacketConn, timeout time.Duration) (err error) {
 	var n int
+	var addr net.Addr
 	buf := pool.Get(ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
-		n, _, err = src.ReadFrom(buf)
+		n, addr, err = src.ReadFrom(buf)
 		if err != nil {
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(DefaultNatTimeout)) // should keep consistent
-		_, err = dst.Write(buf[:n])
+		_, err = dst.(interface {
+			WriteTo(p []byte, addr net.Addr) (n int, err error)
+		}).WriteTo(buf[:n], addr)
 		if err != nil {
 			return
 		}

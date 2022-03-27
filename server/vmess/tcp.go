@@ -5,6 +5,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"time"
+
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
@@ -13,10 +18,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
-	"io"
-	"net"
-	"strconv"
-	"time"
+	"golang.org/x/net/proxy"
 )
 
 func (s *Server) handleConn(conn net.Conn) error {
@@ -99,20 +101,8 @@ func (s *Server) handleConn(conn net.Conn) error {
 			return fmt.Errorf("relay error: %w", err)
 		}
 	case "udp":
-		udpAddr, err := net.ResolveUDPAddr("udp", target)
-		if err != nil {
-			return err
-		}
-		rConn, err := dialer.Dial("udp", udpAddr.String())
-		if err != nil {
-			var netErr net.Error
-			if errors.As(err, &netErr) && netErr.Timeout() {
-				return nil // ignore i/o timeout
-			}
-			return err
-		}
-		//log.Trace("rConn.RemoteAddr(): %v", rConn.RemoteAddr())
-		if err = relayUoT(rConn.(net.PacketConn), udpAddr, lConn); err != nil {
+		// can dial any target
+		if err = relayUoT(dialer, lConn); err != nil {
 			var netErr net.Error
 			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
 				return nil // ignore i/o timeout
@@ -225,18 +215,19 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	return err
 }
 
-func relayConnToUDP(dst net.PacketConn, raddr *net.UDPAddr, src *vmess.Conn, timeout time.Duration) (err error) {
+func relayConnToUDP(dst net.PacketConn, src *vmess.Conn, timeout time.Duration) (err error) {
 	var n int
+	var addr net.Addr
 	buf := pool.Get(vmess.MaxUDPSize)
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
-		n, err = src.Read(buf)
+		n, addr, err = src.ReadFrom(buf)
 		if err != nil {
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-		_, err = dst.WriteTo(buf[:n], raddr)
+		_, err = dst.WriteTo(buf[:n], addr)
 		// WARNING: if the dst is an pre-connected conn, Write should be invoked here.
 		if errors.Is(err, net.ErrWriteToConnected) {
 			log.Error("relayConnToUDP: %v", err)
@@ -247,10 +238,35 @@ func relayConnToUDP(dst net.PacketConn, raddr *net.UDPAddr, src *vmess.Conn, tim
 	}
 }
 
-func relayUoT(rConn net.PacketConn, raddr *net.UDPAddr, lConn *vmess.Conn) (err error) {
+func relayUoT(rDialer proxy.Dialer, lConn *vmess.Conn) (err error) {
+	buf := pool.Get(vmess.MaxUDPSize)
+	defer pool.Put(buf)
+	lConn.SetReadDeadline(time.Now().Add(server.DefaultNatTimeout))
+	n, addr, err := lConn.ReadFrom(buf)
+	if err != nil {
+		return
+	}
+	conn, err := rDialer.Dial("udp", addr.String())
+	if err != nil {
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return nil // ignore i/o timeout
+		}
+		return err
+	}
+	rConn := conn.(net.PacketConn)
+	_ = rConn.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
+	_, err = rConn.WriteTo(buf[:n], addr)
+	if errors.Is(err, net.ErrWriteToConnected) {
+		log.Error("relayConnToUDP: %v", err)
+	}
+	if err != nil {
+		return
+	}
+
 	eCh := make(chan error, 1)
 	go func() {
-		e := relayConnToUDP(rConn, raddr, lConn, server.DefaultNatTimeout)
+		e := relayConnToUDP(rConn, lConn, server.DefaultNatTimeout)
 		rConn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		eCh <- e
 	}()

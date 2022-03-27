@@ -1,25 +1,51 @@
 package vmess
 
 import (
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"net"
 	"strconv"
+
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 )
 
 func (c *Conn) ReadFrom(p []byte) (n int, addr net.Addr, err error) {
-	// FIXME: a compromise on Symmetric NAT
-	if c.cachedRAddrIP == nil {
-		c.cachedRAddrIP, err = net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
-		if err != nil {
-			return 0, nil, err
+	buf := pool.Get(MaxUDPSize)
+	defer pool.Put(buf)
+	n, err = c.Read(buf)
+
+	if c.metadata.IsPacketAddr() {
+		addrTyp, address, err := ExtractPacketAddr(buf)
+		addrLen := PacketAddrLength(addrTyp)
+		copy(p, buf[addrLen:n])
+		return n - addrLen, &address, err
+	} else {
+		if c.cachedRAddrIP == nil {
+			c.cachedRAddrIP, err = net.ResolveUDPAddr("udp", net.JoinHostPort(c.metadata.Hostname, strconv.Itoa(int(c.metadata.Port))))
+			if err != nil {
+				return 0, nil, err
+			}
 		}
+		addr = c.cachedRAddrIP
+		copy(p, buf[:n])
+		return n, addr, err
 	}
-	addr = c.cachedRAddrIP
-	n, err = c.Read(p)
-	return n, addr, err
 }
 
 func (c *Conn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	if c.metadata.IsPacketAddr() {
+		address := addr.(*net.UDPAddr)
+		packetAddrLen := UDPAddrToPacketAddrLength(address)
+		buf := pool.Get(packetAddrLen + len(p))
+		defer pool.Put(buf)
+
+		err := PutPacketAddr(buf, address)
+		if err != nil {
+			return 0, err
+		}
+		copy(buf[packetAddrLen:], p)
+		return c.Write(buf)
+	}
+
 	return c.Write(p)
 }
 
