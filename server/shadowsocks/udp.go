@@ -8,7 +8,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	"inet.af/netaddr"
 	"io"
 	"net"
 	"strconv"
@@ -169,7 +168,7 @@ func (s *Server) relay(laddr net.Addr, rConn net.PacketConn, timeout time.Durati
 			}
 
 			var typ protocol.MetadataType
-			if ip, _ := netaddr.FromStdIP(sAddr.IP); ip.Is4() {
+			if sAddr.AddrPort().Addr().Is4() {
 				typ = protocol.MetadataTypeIPv4
 			} else {
 				typ = protocol.MetadataTypeIPv6

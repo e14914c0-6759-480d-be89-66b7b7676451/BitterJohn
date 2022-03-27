@@ -2,8 +2,8 @@ package protocol
 
 import (
 	"fmt"
-	"inet.af/netaddr"
 	"net"
+	"net/netip"
 	"strconv"
 )
 
@@ -44,7 +44,7 @@ func ParseMetadata(tgt string) (mdata Metadata, err error) {
 	if err != nil {
 		return mdata, fmt.Errorf("failed to parse port: %w", err)
 	}
-	tgtIP, err := netaddr.ParseIP(host)
+	tgtIP, err := netip.ParseAddr(host)
 	var typ MetadataType
 	if err != nil {
 		typ = MetadataTypeDomain

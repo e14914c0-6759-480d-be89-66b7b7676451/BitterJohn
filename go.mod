@@ -1,6 +1,6 @@
 module github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
 
-go 1.17
+go 1.18
 
 require (
 	github.com/1lann/promptui v0.0.0-20201231203810-3d80f6bc68f3
@@ -19,7 +19,6 @@ require (
 	github.com/yl2chen/cidranger v1.0.2
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f
-	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6
 
 )
 
@@ -62,8 +61,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect
-	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
 	golang.org/x/sys v0.0.0-20210903071746-97244b99971b // indirect
 	golang.org/x/text v0.3.6 // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect

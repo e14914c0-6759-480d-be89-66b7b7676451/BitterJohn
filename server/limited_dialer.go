@@ -7,9 +7,9 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/net/dns/dnsmessage"
 	"golang.org/x/net/proxy"
-	"inet.af/netaddr"
 	"io"
 	"net"
+	"net/netip"
 	"syscall"
 )
 
@@ -32,12 +32,12 @@ func NewLimitedDialer(fullCone bool) *PrivateLimitedDialer {
 				if err != nil {
 					return err
 				}
-				ip, err := netaddr.ParseIP(host)
+				ip, err := netip.ParseAddr(host)
 				if err != nil {
 					// not a valid IP address
 					return err
 				}
-				if common.IsPrivate(ip.IPAddr().IP) {
+				if common.IsPrivate(ip.AsSlice()) {
 					return fmt.Errorf("%w: %v", ErrDialPrivateAddress, ip.String())
 				}
 				return nil

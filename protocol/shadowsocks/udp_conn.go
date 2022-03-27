@@ -4,8 +4,8 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	disk_bloom "github.com/mzz2017/disk-bloom"
-	"inet.af/netaddr"
 	"net"
+	"net/netip"
 	"strconv"
 	"time"
 )
@@ -108,11 +108,11 @@ func (c *UDPConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 	var typ protocol.MetadataType
 	switch typ {
 	case protocol.MetadataTypeIPv4, protocol.MetadataTypeIPv6:
-		ipport, err := netaddr.ParseIPPort(net.JoinHostPort(mdata.Hostname, strconv.Itoa(int(mdata.Port))))
+		ipport, err := netip.ParseAddrPort(net.JoinHostPort(mdata.Hostname, strconv.Itoa(int(mdata.Port))))
 		if err != nil {
 			return 0, nil, err
 		}
-		addr = ipport.UDPAddr()
+		addr = net.UDPAddrFromAddrPort(ipport)
 	}
 	copy(b, b[sizeMetadata:])
 	n -= sizeMetadata
