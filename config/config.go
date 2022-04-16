@@ -19,6 +19,8 @@ type John struct {
 	NoRelay        bool           `json:"noRelay"`
 
 	MaxDrainN int64 `json:"maxDrainN" default:"-1" desc:"Max number of bytes to drain. default value is -1, which means unlimited."`
+
+	DoNotValidateCDN bool `json:"doNotValidateCDN" desc:"Do not validate the CDN configuration of the peer SweetLisa"`
 }
 
 type BandwidthLimit struct {

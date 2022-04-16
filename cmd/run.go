@@ -39,6 +39,7 @@ var (
 			v.BindPFlag("john.log.maxDays", cmd.PersistentFlags().Lookup("log-max-days"))
 			v.BindPFlag("john.log.disableTimestamp", cmd.PersistentFlags().Lookup("log-disable-timestamp"))
 			v.BindPFlag("john.log.disableColor", cmd.PersistentFlags().Lookup("log-disable-color"))
+			v.BindPFlag("john.doNotValidateCDN", cmd.PersistentFlags().Lookup("do-not-validate-cdn"))
 
 			Run()
 		},
@@ -53,6 +54,7 @@ func init() {
 	runCmd.PersistentFlags().Int64("log-max-days", 0, "maximum number of days to keep log files (default is 3)")
 	runCmd.PersistentFlags().Bool("log-disable-timestamp", false, "disable the output of timestamp")
 	runCmd.PersistentFlags().Bool("log-disable-color", false, "disable the color of log")
+	runCmd.PersistentFlags().Bool("do-not-validate-cdn", false, "do not validate the CDN configuration of the peer SweetLisa")
 }
 
 func Run() {
@@ -97,45 +99,48 @@ func Run() {
 		err = s.Listen(conf.John.Listen)
 		close(done)
 	}()
-	go func() {
-		// check secrecy of lisa at intervals
-		var consecutiveFailure uint32
-		for {
-			select {
-			case <-done:
-				break
-			default:
-			}
-			var cdn string
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			t, _ := net.LookupTXT("cdn-validate." + config.ParamsObj.Lisa.Host)
-			var validateToken string
-			if len(t) > 0 {
-				validateToken = t[0]
-			}
-			cdn, err = api.TrustedHost(ctx, config.ParamsObj.Lisa.Host, validateToken)
-			if err != nil {
-				switch {
-				case strings.Contains(err.Error(), "context deadline exceeded"):
-					// pass
-					log.Warn("%v: %v", cdn, err)
-				case errors.Is(err, cdn_validator.ErrCanStealIP):
-					close(done)
-					log.Error("%v: %v", cdn, err)
-				case errors.Is(err, cdn_validator.ErrFailedValidate):
-					atomic.AddUint32(&consecutiveFailure, 1)
-					if consecutiveFailure >= 3 {
-						log.Error("%v: %v", cdn, err)
-						// TODO: unregister and wait for recover
-					}
+
+	if !config.ParamsObj.John.DoNotValidateCDN {
+		go func() {
+			// check secrecy of lisa at intervals
+			var consecutiveFailure uint32
+			for {
+				select {
+				case <-done:
+					break
+				default:
 				}
-			} else {
-				consecutiveFailure = 0
+				var cdn string
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				t, _ := net.LookupTXT("cdn-validate." + config.ParamsObj.Lisa.Host)
+				var validateToken string
+				if len(t) > 0 {
+					validateToken = t[0]
+				}
+				cdn, err = api.TrustedHost(ctx, config.ParamsObj.Lisa.Host, validateToken)
+				if err != nil {
+					switch {
+					case strings.Contains(err.Error(), "context deadline exceeded"):
+						// pass
+						log.Warn("%v: %v", cdn, err)
+					case errors.Is(err, cdn_validator.ErrCanStealIP):
+						close(done)
+						log.Error("%v: %v", cdn, err)
+					case errors.Is(err, cdn_validator.ErrFailedValidate):
+						atomic.AddUint32(&consecutiveFailure, 1)
+						if consecutiveFailure >= 3 {
+							log.Error("%v: %v", cdn, err)
+							// TODO: unregister and wait for recover
+						}
+					}
+				} else {
+					consecutiveFailure = 0
+				}
+				cancel()
+				time.Sleep(30*time.Second + time.Duration(fastrand.Intn(151))*time.Second)
 			}
-			cancel()
-			time.Sleep(30*time.Second + time.Duration(fastrand.Intn(151)) * time.Second)
-		}
-	}()
+		}()
+	}
 
 	<-done
 	if err != nil {
