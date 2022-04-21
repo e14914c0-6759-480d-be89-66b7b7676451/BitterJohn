@@ -264,6 +264,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 }
 
 func (c *Conn) Read(b []byte) (n int, err error) {
+	c.mutex.Lock()
 	c.initRead.Do(func() {
 		if c.metadata.IsClient {
 			bufSize := pool.Get(18) // 2+16
@@ -379,14 +380,20 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 		}
 	})
 	if err != nil {
+		c.mutex.Unlock()
 		return 0, err
 	}
 	if b == nil {
+		c.mutex.Unlock()
 		return 0, nil
+	}
+	if c.readNonceGenerator == nil {
+		// did not initiate successfully
+		c.mutex.Unlock()
+		return 0, net.ErrClosed
 	}
 
 	// dump unread data
-	c.mutex.Lock()
 	if c.indexToRead < len(c.leftToRead) {
 		n = copy(b, c.leftToRead[c.indexToRead:])
 		c.indexToRead += n

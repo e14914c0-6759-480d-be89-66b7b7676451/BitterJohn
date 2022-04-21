@@ -93,6 +93,7 @@ func (s *Server) registerBackground() {
 		select {
 		case <-s.closed:
 			ticker.Stop()
+			log.Debug("Server was closed")
 			break
 		case <-ticker.C:
 			if time.Since(s.lastAlive) < server.LostThreshold {
@@ -109,6 +110,7 @@ func (s *Server) registerBackground() {
 				}
 				log.Warn("registerBackground: %v. retry in %v", err, interval.String())
 			} else {
+				log.Debug("Suc Reg")
 				interval = 2 * time.Second
 			}
 			ticker.Reset(interval)
