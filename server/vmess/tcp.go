@@ -25,6 +25,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 	defer conn.Close()
 	passage, eAuthID, err := s.authFromPool(conn)
 	if err != nil {
+		log.Trace("handleConn: auth fail")
 		// Auth fail. Drain the conn
 		if config.ParamsObj.John.MaxDrainN == -1 {
 			io.Copy(io.Discard, conn)

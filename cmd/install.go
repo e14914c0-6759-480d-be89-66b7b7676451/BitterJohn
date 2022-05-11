@@ -170,6 +170,13 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 			return nil, false, nil
 		}
 	}
+
+	sel := &promptui.Select{
+		Label: "Protocol",
+		Items: []string{"vmess", "vmess+tls+grpc", "shadowsocks"},
+	}
+	_, protocol, err := sel.Run()
+
 	prompt := &promptui.Prompt{
 		Label:    "The host of SweetLisa",
 		Validate: hostValidator,
@@ -189,9 +196,13 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		return nil, false, err
 	}
 
+	randPort := strconv.Itoa(1024 + fastrand.Intn(30000))
+	if common.StringsHas(strings.Split(protocol, "+"), "tls") {
+		randPort = "443"
+	}
 	prompt = &promptui.Prompt{
 		Label:     "Address to listen on",
-		Default:   "0.0.0.0:" + strconv.Itoa(1024+fastrand.Intn(30000)),
+		Default:   "0.0.0.0:" + randPort,
 		AllowEdit: true,
 		Validate:  addressValidator,
 	}
@@ -299,13 +310,6 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		downlinkLimitGiB = common.ShouldParseInt64(fields[1])
 		totalLimitGiB = common.ShouldParseInt64(fields[2])
 	}
-
-	var protocol string
-	sel := &promptui.Select{
-		Label: "Protocol",
-		Items: []string{"vmess", "shadowsocks"},
-	}
-	_, protocol, err = sel.Run()
 
 	return &config.Params{
 		Lisa: config.Lisa{

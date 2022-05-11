@@ -45,3 +45,13 @@ type Params struct {
 }
 
 var ParamsObj Params
+
+func GetTlsCertPath() (crt, key string, err error) {
+	if crt, err = DataFile("cert.pem"); err != nil {
+		return "", "", err
+	}
+	if key, err = DataFile("cert.key"); err != nil {
+		return "", "", err
+	}
+	return "", "", nil
+}

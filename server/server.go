@@ -19,9 +19,9 @@ var (
 type Argument struct {
 	Ticket string
 
-	Name      string
-	Hostnames string
-	Port      int
+	ServerName string
+	Hostnames  string
+	Port       int
 
 	NoRelay bool
 }

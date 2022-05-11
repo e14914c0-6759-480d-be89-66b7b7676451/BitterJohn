@@ -3,8 +3,12 @@ module github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
 go 1.18
 
 require (
+	ekyu.moe/leb128 v0.0.0-20190626180622-d3722dc409a8
 	github.com/1lann/promptui v0.0.0-20201231203810-3d80f6bc68f3
 	github.com/Masterminds/sprig v2.22.0+incompatible
+	github.com/Qv2ray/gun v0.0.0-20210314140700-95a65981f2f8
+	github.com/adrg/xdg v0.4.0
+	github.com/caddyserver/certmagic v0.16.1
 	github.com/cloudflare/cloudflare-go v0.26.0
 	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20211214125323-be3eb47e560f
 	github.com/google/uuid v1.3.0
@@ -17,8 +21,9 @@ require (
 	github.com/spf13/viper v1.9.0
 	github.com/v2rayA/beego/v2 v2.0.4
 	github.com/yl2chen/cidranger v1.0.2
-	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
-	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f
+	golang.org/x/crypto v0.0.0-20220210151621-f4118a5b28e2
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
+	google.golang.org/grpc v1.46.0
 
 )
 
@@ -41,12 +46,16 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
+	github.com/klauspost/cpuid/v2 v2.0.11 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.2.0 // indirect
+	github.com/libdns/libdns v0.2.1 // indirect
 	github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
+	github.com/mholt/acmez v1.0.2 // indirect
+	github.com/miekg/dns v1.1.46 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.2 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -61,12 +70,19 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect
-	golang.org/x/sys v0.0.0-20210903071746-97244b99971b // indirect
-	golang.org/x/text v0.3.6 // indirect
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.21.0 // indirect
+	golang.org/x/mod v0.4.2 // indirect
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
+	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
+	golang.org/x/tools v0.1.6-0.20210726203631-07bc1bf47fb2 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/ini.v1 v1.63.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-//replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa
+replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa

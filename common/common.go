@@ -4,10 +4,12 @@ import (
 	crand "crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"math"
 	"math/big"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os/user"
 	"path/filepath"
 	"reflect"
@@ -181,4 +183,30 @@ func StringToUUID5(str string) string {
 	buf[23] = '-'
 	hex.Encode(buf[24:], u[10:])
 	return string(buf)
+}
+
+func StringsHas(strs []string, str string) bool {
+	for _, s := range strs {
+		if s == str{
+			return true
+		}
+	}
+	return false
+}
+
+
+func HostsToSNI(hosts string, rootDomain string) (sni string, err error) {
+	if hostnames := strings.Split(hosts, ","); len(hostnames) > 0 {
+		if ip, e := netip.ParseAddr(hostnames[0]); e != nil {
+			// domain
+			sni = hostnames[0]
+		} else {
+			// ip
+			if !ip.Is4() {
+				return "", fmt.Errorf("the first hostname is not ipv4 format")
+			}
+			sni = strings.ReplaceAll(hostnames[0], ".", "-") + "." + rootDomain
+		}
+	}
+	return sni, nil
 }

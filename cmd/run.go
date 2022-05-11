@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
@@ -20,6 +21,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -41,7 +43,9 @@ var (
 			v.BindPFlag("john.log.disableColor", cmd.PersistentFlags().Lookup("log-disable-color"))
 			v.BindPFlag("john.doNotValidateCDN", cmd.PersistentFlags().Lookup("do-not-validate-cdn"))
 
-			Run()
+			if err := Run(); err != nil {
+				log.Fatal("%v", err)
+			}
 		},
 	}
 	v = viper.New()
@@ -57,26 +61,28 @@ func init() {
 	runCmd.PersistentFlags().Bool("do-not-validate-cdn", false, "do not validate the CDN configuration of the peer SweetLisa")
 }
 
-func Run() {
+func Run() (err error) {
 	initConfig()
-	var err error
 	var done = make(chan error)
 
-	conf := config.ParamsObj
+	conf := &config.ParamsObj
 
 	var (
 		ctx    context.Context
 		dialer proxy.Dialer
 	)
-	switch conf.John.Protocol {
-	case string(model.ProtocolShadowsocks):
+	if !model.Protocol(conf.John.Protocol).Valid() {
+		return fmt.Errorf("protocol %v is invalid", strconv.Quote(conf.John.Protocol))
+	}
+	switch proto := model.Protocol(conf.John.Protocol); proto {
+	case model.ProtocolShadowsocks:
 		bloom, err := disk_bloom.NewBloom(filepath.Join(filepath.Dir(v.ConfigFileUsed()), "disk_bloom_*"), []byte(DiskBloomSalt))
 		if err != nil {
-			log.Fatal("%v", err)
+			return fmt.Errorf("%v", err)
 		}
 		ctx = context.WithValue(context.Background(), "bloom", bloom)
 		dialer = server.FullconePrivateLimitedDialer
-	case string(model.ProtocolVMessTCP):
+	case model.ProtocolVMessTCP, model.ProtocolVMessTlsGrpc:
 		doubleCuckoo := vmess.NewReplayFilter(120)
 		ctx = context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo)
 		dialer = server.FullconePrivateLimitedDialer
@@ -85,16 +91,44 @@ func Run() {
 	// listen
 	s, err := server.NewServer(ctx, dialer,
 		conf.John.Protocol, conf.Lisa, server.Argument{
-			Ticket:    conf.John.Ticket,
-			Name:      conf.John.Name,
-			Hostnames: conf.John.Hostname,
-			Port:      conf.John.Port,
-			NoRelay:   conf.John.NoRelay,
+			Ticket:     conf.John.Ticket,
+			ServerName: conf.John.Name,
+			Hostnames:  conf.John.Hostname,
+			Port:       conf.John.Port,
+			NoRelay:    conf.John.NoRelay,
 		})
 	if err != nil {
-		log.Fatal("%v", err)
+		return fmt.Errorf("%v", err)
 	}
 	log.Alert("Protocol: %v", conf.John.Protocol)
+	if common.StringsHas(strings.Split(conf.John.Protocol, "+"), "tls") {
+		log.Alert("BitterJohn is listening at 80 for ACME Challenges")
+		// waiting for the record
+		domain, err := common.HostsToSNI(conf.John.Hostname, conf.Lisa.Host)
+		if err != nil {
+			return fmt.Errorf("%v", err)
+		}
+		log.Info("TLS SNI is %v", domain)
+
+		log.Alert("Waiting for DNS record")
+		t := time.Now()
+		for {
+			resolver := net.Resolver{
+				PreferGo: true,
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ips, _ := resolver.LookupIP(ctx, "ip4", domain)
+			cancel()
+			if len(ips) > 0 {
+				break
+			}
+			if time.Since(t) > time.Minute {
+				return fmt.Errorf("timeout for waiting for DNS record")
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		log.Alert("Found DNS record")
+	}
 	go func() {
 		err = s.Listen(conf.John.Listen)
 		close(done)
@@ -144,8 +178,9 @@ func Run() {
 
 	<-done
 	if err != nil {
-		log.Fatal("%v", err)
+		return fmt.Errorf("%v", err)
 	}
+	return nil
 }
 
 func initConfig() {

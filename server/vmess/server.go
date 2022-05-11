@@ -3,9 +3,12 @@ package vmess
 import (
 	"context"
 	"crypto/aes"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/Qv2ray/gun/pkg/proto"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
@@ -14,21 +17,27 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/proxy"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"net"
+	"net/http"
 	"strconv"
 	"sync"
 	"time"
 )
 
 func init() {
-	server.Register("vmess", NewJohn)
+	server.Register("vmess", NewJohnTCP)
+	server.Register("vmess+tls+grpc", NewJohnTlsGrpc)
 }
 
 type Server struct {
 	closed    chan struct{}
 	sweetLisa config.Lisa
 	arg       server.Argument
+	protocol  model.Protocol
 	lastAlive time.Time
 
 	listener        net.Listener
@@ -42,6 +51,9 @@ type Server struct {
 
 	doubleCuckoo *vmess.ReplayFilter
 	dialer       proxy.Dialer
+
+	// grpc
+	grpc GrpcServer
 }
 
 func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
@@ -55,7 +67,7 @@ func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
 	return s, nil
 }
 
-func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument, protocol model.Protocol) (server.Server, error) {
 	s, err := New(valueCtx, dialer)
 	if err != nil {
 		return nil, err
@@ -64,6 +76,7 @@ func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config
 	john.sweetLisa = sweetLisaHost
 	john.arg = arg
 	john.passageContentionCache = server.NewContentionCache()
+	john.protocol = protocol
 	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
 		return nil, err
 	}
@@ -76,6 +89,22 @@ func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config
 	return john, nil
 }
 
+func NewJohnTCP(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, model.ProtocolVMessTCP)
+	if err != nil {
+		return nil, err
+	}
+	return john, nil
+}
+
+func NewJohnTlsGrpc(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, model.ProtocolVMessTlsGrpc)
+	if err != nil {
+		return nil, err
+	}
+	return john, nil
+}
+
 func (s *Server) Listen(addr string) (err error) {
 	lt, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -83,23 +112,50 @@ func (s *Server) Listen(addr string) (err error) {
 	}
 	s.startTimestamp = time.Now().Unix()
 	s.listener = lt
-	for {
-		conn, err := lt.Accept()
-		if err != nil {
-			log.Warn("%v", err)
-		}
-		go func() {
-			err := s.handleConn(conn)
+	switch s.protocol {
+	case model.ProtocolVMessTCP:
+		for {
+			conn, err := lt.Accept()
 			if err != nil {
-				if errors.Is(err, server.ErrPassageAbuse) ||
-					errors.Is(err, protocol.ErrReplayAttack) {
-					log.Warn("handleConn: %v", err)
-				} else {
-					log.Info("handleConn: %v", err)
-				}
+				log.Warn("%v", err)
 			}
-		}()
+			go func() {
+				err := s.handleConn(conn)
+				if err != nil {
+					if errors.Is(err, server.ErrPassageAbuse) ||
+						errors.Is(err, protocol.ErrReplayAttack) {
+						log.Warn("handleConn: %v", err)
+					} else {
+						log.Info("handleConn: %v", err)
+					}
+				}
+			}()
+		}
+	case model.ProtocolVMessTlsGrpc:
+		sni, err := common.HostsToSNI(s.arg.Hostnames, s.sweetLisa.Host)
+		if err != nil {
+			return err
+		}
+		m := &autocert.Manager{
+			Cache:      autocert.DirCache("tls"),
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist(sni),
+		}
+		go http.ListenAndServe(":http", m.HTTPHandler(nil))
+		s.grpc = GrpcServer{
+			Server:     grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: m.GetCertificate, NextProtos: []string{"h2"}}))),
+			localAddr:  lt.Addr(),
+			handleConn: s.handleConn,
+		}
+		proto.RegisterGunServiceServerX(s.grpc.Server, s.grpc, "GunService")
+
+		if err = s.grpc.Serve(lt); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unrecognized protocol: %v", s.protocol)
 	}
+	return nil
 }
 
 func (s *Server) AddPassages(passages []server.Passage) (err error) {
@@ -184,6 +240,12 @@ func (s *Server) Passages() (passages []server.Passage) {
 }
 
 func (s *Server) Close() error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if s.grpc.Server != nil {
+		s.grpc.Stop()
+		s.grpc.Server = nil
+	}
 	return s.listener.Close()
 }
 
@@ -272,11 +334,11 @@ func (s *Server) register() error {
 	}
 	cdnNames, users, err := api.Register(ctx, s.sweetLisa.Host, validateToken, model.Server{
 		Ticket: s.arg.Ticket,
-		Name:   s.arg.Name,
+		Name:   s.arg.ServerName,
 		Hosts:  s.arg.Hostnames,
 		Port:   s.arg.Port,
 		Argument: model.Argument{
-			Protocol: model.ProtocolVMessTCP,
+			Protocol: s.protocol,
 			Password: manager.In.Password,
 		},
 		BandwidthLimit: bandwidthLimit,
