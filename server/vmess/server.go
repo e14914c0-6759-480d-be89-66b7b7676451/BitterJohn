@@ -54,6 +54,8 @@ type Server struct {
 
 	// grpc
 	grpc GrpcServer
+
+	autocertServer *http.Server
 }
 
 func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
@@ -141,7 +143,8 @@ func (s *Server) Listen(addr string) (err error) {
 			Prompt:     autocert.AcceptTOS,
 			HostPolicy: autocert.HostWhitelist(sni),
 		}
-		go http.ListenAndServe(":http", m.HTTPHandler(nil))
+		s.autocertServer = &http.Server{Addr: ":http", Handler: m.HTTPHandler(nil)}
+		go s.autocertServer.ListenAndServe()
 		s.grpc = GrpcServer{
 			Server:     grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: m.GetCertificate, NextProtos: []string{"h2"}}))),
 			localAddr:  lt.Addr(),
@@ -245,6 +248,9 @@ func (s *Server) Close() error {
 	if s.grpc.Server != nil {
 		s.grpc.Stop()
 		s.grpc.Server = nil
+	}
+	if s.autocertServer != nil {
+		s.autocertServer.Close()
 	}
 	return s.listener.Close()
 }
