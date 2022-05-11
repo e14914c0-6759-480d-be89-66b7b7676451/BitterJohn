@@ -11,6 +11,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/disk_bloom"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/resolver"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
@@ -113,12 +114,7 @@ func Run() (err error) {
 		log.Alert("Waiting for DNS record")
 		t := time.Now()
 		for {
-			resolver := net.Resolver{
-				PreferGo: true,
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			ips, _ := resolver.LookupIP(ctx, "ip4", domain)
-			cancel()
+			ips, _ := resolver.LookupHost(domain)
 			if len(ips) > 0 {
 				break
 			}
