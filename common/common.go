@@ -210,3 +210,16 @@ func HostsToSNI(hosts string, rootDomain string) (sni string, err error) {
 	}
 	return sni, nil
 }
+
+func HostToSNI(host string, rootDomain string) (sni string, err error) {
+	ip, e := netip.ParseAddr(host)
+	if e != nil {
+		sni = host
+	} else {
+		if ip.Is6() {
+			return "", fmt.Errorf("the first hostname is not ipv4 format")
+		}
+		sni = strings.ReplaceAll(host, ".", "-") + "." + rootDomain
+	}
+	return sni, nil
+}

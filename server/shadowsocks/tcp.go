@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
@@ -144,8 +145,10 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	// Dial and relay
 	dialer := s.dialer
 	if passage.Out != nil {
+		sni, _ := common.HostToSNI(passage.Out.Host, s.sweetLisa.Host)
 		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, protocol.Header{
 			ProxyAddress: net.JoinHostPort(passage.Out.Host, passage.Out.Port),
+			SNI:          sni,
 			Cipher:       passage.Out.Method,
 			Password:     passage.Out.Password,
 			IsClient:     true,
