@@ -1,4 +1,4 @@
-package vmess
+package grpc
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type GrpcConn struct {
+type ServerConn struct {
 	localAddr net.Addr
 	tun       proto.GunService_TunServer
 	mu        sync.Mutex // mu protects reading
@@ -22,7 +22,7 @@ type GrpcConn struct {
 	offset    int
 }
 
-func (c *GrpcConn) Read(p []byte) (n int, err error) {
+func (c *ServerConn) Read(p []byte) (n int, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.buf != nil {
@@ -45,46 +45,46 @@ func (c *GrpcConn) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (c *GrpcConn) Write(p []byte) (n int, err error) {
+func (c *ServerConn) Write(p []byte) (n int, err error) {
 	return len(p), c.tun.Send(&proto.Hunk{Data: p})
 }
 
-func (c *GrpcConn) Close() error {
+func (c *ServerConn) Close() error {
 	return nil
 }
-func (c *GrpcConn) LocalAddr() net.Addr {
+func (c *ServerConn) LocalAddr() net.Addr {
 	return c.localAddr
 }
-func (c *GrpcConn) RemoteAddr() net.Addr {
+func (c *ServerConn) RemoteAddr() net.Addr {
 	p, _ := peer.FromContext(c.tun.Context())
 	return p.Addr
 }
 
 // SetDeadline is not implemented
-func (c *GrpcConn) SetDeadline(t time.Time) error {
+func (c *ServerConn) SetDeadline(t time.Time) error {
 	return nil
 }
 
 // SetReadDeadline is not implemented
-func (c *GrpcConn) SetReadDeadline(t time.Time) error {
+func (c *ServerConn) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
 // SetWriteDeadline is not implemented
-func (c *GrpcConn) SetWriteDeadline(t time.Time) error {
+func (c *ServerConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
 
-type GrpcServer struct {
+type Server struct {
 	*grpc.Server
-	localAddr  net.Addr
-	handleConn func(conn net.Conn) error
+	LocalAddr  net.Addr
+	HandleConn func(conn net.Conn) error
 }
 
-func (g GrpcServer) Tun(tun proto.GunService_TunServer) error {
-	if err := g.handleConn(&GrpcConn{
-		localAddr: g.localAddr,
+func (g Server) Tun(tun proto.GunService_TunServer) error {
+	if err := g.HandleConn(&ServerConn{
+		localAddr: g.LocalAddr,
 		tun:       tun,
 	}); err != nil {
 		if errors.Is(err, server.ErrPassageAbuse) ||
@@ -98,6 +98,6 @@ func (g GrpcServer) Tun(tun proto.GunService_TunServer) error {
 	return nil
 }
 
-func (g GrpcServer) TunDatagram(datagramServer proto.GunService_TunDatagramServer) error {
+func (g Server) TunDatagram(datagramServer proto.GunService_TunDatagramServer) error {
 	return nil
 }

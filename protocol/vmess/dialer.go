@@ -3,6 +3,7 @@ package vmess
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/transport/grpc"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/manager"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
@@ -73,7 +74,7 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 		mdata.IsClient = d.metadata.IsClient
 
 		if d.protocol == model.ProtocolVMessTlsGrpc {
-			d.nextDialer = &GrpcDialer{
+			d.nextDialer = &grpc.Dialer{
 				NextDialer: &manager.DialerConverter{Dialer: d.nextDialer},
 				ServerName: d.proxySNI,
 			}

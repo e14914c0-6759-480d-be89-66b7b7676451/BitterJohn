@@ -15,6 +15,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	grpc2 "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/transport/grpc"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/acme/autocert"
@@ -53,7 +54,7 @@ type Server struct {
 	dialer       proxy.Dialer
 
 	// grpc
-	grpc GrpcServer
+	grpc grpc2.Server
 
 	autocertServer *http.Server
 }
@@ -145,10 +146,10 @@ func (s *Server) Listen(addr string) (err error) {
 		}
 		s.autocertServer = &http.Server{Addr: ":http", Handler: m.HTTPHandler(nil)}
 		go s.autocertServer.ListenAndServe()
-		s.grpc = GrpcServer{
+		s.grpc = grpc2.Server{
 			Server:     grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: m.GetCertificate, NextProtos: []string{"h2"}}))),
-			localAddr:  lt.Addr(),
-			handleConn: s.handleConn,
+			LocalAddr:  lt.Addr(),
+			HandleConn: s.handleConn,
 		}
 		proto.RegisterGunServiceServerX(s.grpc.Server, s.grpc, "GunService")
 

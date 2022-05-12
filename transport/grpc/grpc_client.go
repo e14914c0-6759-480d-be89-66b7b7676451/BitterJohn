@@ -1,4 +1,4 @@
-package vmess
+package grpc
 
 import (
 	"context"
@@ -16,14 +16,14 @@ import (
 	"time"
 )
 
-type GrpcConn struct {
+type ClientConn struct {
 	tun    proto.GunService_TunClient
 	mu     sync.Mutex // mu protects reading
 	buf    []byte
 	offset int
 }
 
-func (c *GrpcConn) Read(p []byte) (n int, err error) {
+func (c *ClientConn) Read(p []byte) (n int, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.buf != nil {
@@ -48,48 +48,48 @@ func (c *GrpcConn) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (c *GrpcConn) Write(p []byte) (n int, err error) {
+func (c *ClientConn) Write(p []byte) (n int, err error) {
 	return len(p), c.tun.Send(&proto.Hunk{Data: p})
 }
 
-func (c *GrpcConn) Close() error {
+func (c *ClientConn) Close() error {
 	return nil
 }
-func (c *GrpcConn) LocalAddr() net.Addr {
+func (c *ClientConn) LocalAddr() net.Addr {
 	// FIXME
 	return nil
 }
-func (c *GrpcConn) RemoteAddr() net.Addr {
+func (c *ClientConn) RemoteAddr() net.Addr {
 	p, _ := peer.FromContext(c.tun.Context())
 	return p.Addr
 }
 
 // SetDeadline is not implemented
-func (c *GrpcConn) SetDeadline(t time.Time) error {
+func (c *ClientConn) SetDeadline(t time.Time) error {
 	return nil
 }
 
 // SetReadDeadline is not implemented
-func (c *GrpcConn) SetReadDeadline(t time.Time) error {
+func (c *ClientConn) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
 // SetWriteDeadline is not implemented
-func (c *GrpcConn) SetWriteDeadline(t time.Time) error {
+func (c *ClientConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-type GrpcDialer struct {
+type Dialer struct {
 	NextDialer  manager.Dialer
 	ServiceName string
 	ServerName  string
 }
 
-func (d *GrpcDialer) Dial(network string, address string) (net.Conn, error) {
+func (d *Dialer) Dial(network string, address string) (net.Conn, error) {
 	return d.DialContext(context.Background(), network, address)
 }
 
-func (d *GrpcDialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
+func (d *Dialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
 	roots, err := cert.GetSystemCertPool()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system certificate pool")
@@ -122,6 +122,6 @@ func (d *GrpcDialer) DialContext(ctx context.Context, network string, address st
 	if err != nil {
 		return nil, err
 	}
-	conn := GrpcConn{tun: tun}
+	conn := ClientConn{tun: tun}
 	return &conn, nil
 }
