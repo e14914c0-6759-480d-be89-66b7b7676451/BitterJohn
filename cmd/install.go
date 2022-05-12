@@ -12,6 +12,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copyfile"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
@@ -197,8 +198,8 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	}
 
 	randPort := strconv.Itoa(1024 + fastrand.Intn(30000))
-	if common.StringsHas(strings.Split(protocol, "+"), "tls") {
-		randPort = "443"
+	if protocol == string(model.ProtocolVMessTlsGrpc) {
+		randPort = "50051"
 	}
 	prompt = &promptui.Prompt{
 		Label:     "Address to listen on",
