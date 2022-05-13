@@ -8,7 +8,10 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -36,6 +39,9 @@ func (c *ServerConn) Read(p []byte) (n int, err error) {
 	}
 	recv, err := c.tun.Recv()
 	if err != nil {
+		if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
+			err = io.EOF
+		}
 		return 0, err
 	}
 	n = copy(p, recv.Data)
@@ -46,7 +52,11 @@ func (c *ServerConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *ServerConn) Write(p []byte) (n int, err error) {
-	return len(p), c.tun.Send(&proto.Hunk{Data: p})
+	err = c.tun.Send(&proto.Hunk{Data: p})
+	if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
+		err = io.EOF
+	}
+	return len(p), err
 }
 
 func (c *ServerConn) Close() error {

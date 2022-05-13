@@ -9,8 +9,11 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/manager"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -18,6 +21,7 @@ import (
 
 type ClientConn struct {
 	tun    proto.GunService_TunClient
+	cc     *grpc.ClientConn
 	mu     sync.Mutex // mu protects reading
 	buf    []byte
 	offset int
@@ -37,6 +41,9 @@ func (c *ClientConn) Read(p []byte) (n int, err error) {
 	}
 	recv, err := c.tun.Recv()
 	if err != nil {
+		if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
+			err = io.EOF
+		}
 		return 0, err
 	}
 	n = copy(p, recv.Data)
@@ -49,11 +56,18 @@ func (c *ClientConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *ClientConn) Write(p []byte) (n int, err error) {
-	return len(p), c.tun.Send(&proto.Hunk{Data: p})
+	err = c.tun.Send(&proto.Hunk{Data: p})
+	if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
+		err = io.EOF
+	}
+	return len(p), err
 }
 
 func (c *ClientConn) Close() error {
-	return nil
+	return c.cc.Close()
+}
+func (c *ClientConn) CloseWrite() error {
+	return c.tun.CloseSend()
 }
 func (c *ClientConn) LocalAddr() net.Addr {
 	// FIXME
@@ -122,6 +136,6 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 	if err != nil {
 		return nil, err
 	}
-	conn := ClientConn{tun: tun}
+	conn := ClientConn{tun: tun, cc: cc}
 	return &conn, nil
 }
