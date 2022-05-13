@@ -219,17 +219,17 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 }
 
 func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverName string, address string) (*grpc.ClientConn, ccCanceller, error) {
-	globalCCAccess.Lock()
-	defer globalCCAccess.Unlock()
 
 	roots, err := cert.GetSystemCertPool()
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
 	}
 
+	globalCCAccess.Lock()
 	if globalCCMap == nil {
 		globalCCMap = make(map[string]*grpc.ClientConn)
 	}
+	globalCCAccess.Unlock()
 
 	canceller := func() {
 		globalCCAccess.Lock()
@@ -238,9 +238,12 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 	}
 
 	// TODO Should support chain proxy to the same destination
+	globalCCAccess.Lock()
 	if client, found := globalCCMap[address]; found && client.GetState() != connectivity.Shutdown {
+		globalCCAccess.Unlock()
 		return client, canceller, nil
 	}
+	globalCCAccess.Unlock()
 	cc, err := grpc.Dial(address,
 		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName)),
 		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
@@ -255,6 +258,8 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 			MinConnectTimeout: 5 * time.Second,
 		}),
 	)
+	globalCCAccess.Lock()
 	globalCCMap[address] = cc
+	globalCCAccess.Unlock()
 	return cc, canceller, err
 }
