@@ -7,9 +7,11 @@ import (
 	"github.com/Qv2ray/gun/pkg/proto"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/manager"
+	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -19,17 +21,39 @@ import (
 	"time"
 )
 
+// https://github.com/v2fly/v2ray-core/blob/v5.0.6/transport/internet/grpc/dial.go
+var (
+	globalCCMap    map[string]*grpc.ClientConn
+	globalCCAccess sync.Mutex
+)
+
+type ccCanceller func()
+
 type ClientConn struct {
-	tun    proto.GunService_TunClient
-	cc     *grpc.ClientConn
-	mu     sync.Mutex // mu protects reading
-	buf    []byte
-	offset int
+	tun       proto.GunService_TunClient
+	closer    context.CancelFunc
+	muReading sync.Mutex // muReading protects reading
+	muWriting sync.Mutex // muWriting protects writing
+	buf       []byte
+	offset    int
+
+	deadlineMu    sync.Mutex
+	readDeadline  *time.Timer
+	writeDeadline *time.Timer
+	readClosed    bool
+	writeClosed   bool
+	closed        bool
 }
 
 func (c *ClientConn) Read(p []byte) (n int, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.deadlineMu.Lock()
+	if c.readClosed || c.closed {
+		c.deadlineMu.Unlock()
+		return 0, io.EOF
+	}
+	c.deadlineMu.Unlock()
+	c.muReading.Lock()
+	defer c.muReading.Unlock()
 	if c.buf != nil {
 		n = copy(p, c.buf[c.offset:])
 		c.offset += n
@@ -56,6 +80,15 @@ func (c *ClientConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *ClientConn) Write(p []byte) (n int, err error) {
+	c.deadlineMu.Lock()
+	if c.writeClosed || c.closed {
+		c.deadlineMu.Unlock()
+		return 0, io.EOF
+	}
+	c.deadlineMu.Unlock()
+
+	c.muWriting.Lock()
+	defer c.muWriting.Unlock()
 	err = c.tun.Send(&proto.Hunk{Data: p})
 	if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
 		err = io.EOF
@@ -64,7 +97,9 @@ func (c *ClientConn) Write(p []byte) (n int, err error) {
 }
 
 func (c *ClientConn) Close() error {
-	return c.cc.Close()
+	c.closed = true
+	c.closer()
+	return nil
 }
 func (c *ClientConn) CloseWrite() error {
 	return c.tun.CloseSend()
@@ -78,18 +113,74 @@ func (c *ClientConn) RemoteAddr() net.Addr {
 	return p.Addr
 }
 
-// SetDeadline is not implemented
 func (c *ClientConn) SetDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	if now := time.Now(); t.After(now) {
+		c.readClosed = false
+		c.writeClosed = false
+		if c.readDeadline != nil {
+			c.readDeadline.Reset(t.Sub(now))
+		} else {
+			c.readDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.readClosed = true
+			})
+		}
+		if c.writeDeadline != nil {
+			c.writeDeadline.Reset(t.Sub(now))
+		} else {
+			c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.writeClosed = true
+			})
+		}
+	} else {
+		c.readClosed = true
+		c.writeClosed = true
+	}
 	return nil
 }
 
-// SetReadDeadline is not implemented
 func (c *ClientConn) SetReadDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	if now := time.Now(); t.After(now) {
+		c.readClosed = false
+		if c.readDeadline != nil {
+			c.readDeadline.Reset(t.Sub(now))
+		} else {
+			c.readDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.readClosed = true
+			})
+		}
+	} else {
+		c.readClosed = true
+	}
 	return nil
 }
 
-// SetWriteDeadline is not implemented
 func (c *ClientConn) SetWriteDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	if now := time.Now(); t.After(now) {
+		c.writeClosed = false
+		if c.writeDeadline != nil {
+			c.writeDeadline.Reset(t.Sub(now))
+		} else {
+			c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.writeClosed = true
+			})
+		}
+	} else {
+		c.writeClosed = true
+	}
 	return nil
 }
 
@@ -104,14 +195,56 @@ func (d *Dialer) Dial(network string, address string) (net.Conn, error) {
 }
 
 func (d *Dialer) DialContext(ctx context.Context, network string, address string) (net.Conn, error) {
+	cc, cancel, err := getGrpcClientConn(ctx, d.NextDialer, d.ServerName, address)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	client := proto.NewGunServiceClient(cc)
+
+	clientX := client.(proto.GunServiceClientX)
+	serviceName := d.ServiceName
+	if serviceName == "" {
+		serviceName = "GunService"
+	}
+	// ctx is the lifetime of the tun
+	ctxStream, streamCloser := context.WithCancel(context.Background())
+	tun, err := clientX.TunCustomName(ctxStream, serviceName)
+	if err != nil {
+		streamCloser()
+		return nil, err
+	}
+	conn := ClientConn{tun: tun, closer: streamCloser}
+	return &conn, nil
+}
+
+func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverName string, address string) (*grpc.ClientConn, ccCanceller, error) {
+	globalCCAccess.Lock()
+	defer globalCCAccess.Unlock()
+
 	roots, err := cert.GetSystemCertPool()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get system certificate pool")
+		return nil, func() {}, fmt.Errorf("failed to get system certificate pool")
+	}
+
+	if globalCCMap == nil {
+		globalCCMap = make(map[string]*grpc.ClientConn)
+	}
+
+	canceller := func() {
+		globalCCAccess.Lock()
+		defer globalCCAccess.Unlock()
+		delete(globalCCMap, address)
+	}
+
+	// TODO Should support chain proxy to the same destination
+	if client, found := globalCCMap[address]; found && client.GetState() != connectivity.Shutdown {
+		return client, canceller, nil
 	}
 	cc, err := grpc.Dial(address,
-		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, d.ServerName)),
-		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return d.NextDialer.DialContext(ctx, "tcp", s)
+		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName)),
+		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "tcp", s)
 		}), grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  500 * time.Millisecond,
@@ -122,20 +255,6 @@ func (d *Dialer) DialContext(ctx context.Context, network string, address string
 			MinConnectTimeout: 5 * time.Second,
 		}),
 	)
-	if err != nil {
-		return nil, err
-	}
-	client := proto.NewGunServiceClient(cc)
-
-	clientX := client.(proto.GunServiceClientX)
-	serviceName := d.ServiceName
-	if serviceName == "" {
-		serviceName = "GunService"
-	}
-	tun, err := clientX.TunCustomName(ctx, serviceName)
-	if err != nil {
-		return nil, err
-	}
-	conn := ClientConn{tun: tun, cc: cc}
-	return &conn, nil
+	globalCCMap[address] = cc
+	return cc, canceller, err
 }

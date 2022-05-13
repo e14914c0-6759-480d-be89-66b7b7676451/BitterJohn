@@ -20,14 +20,29 @@ import (
 type ServerConn struct {
 	localAddr net.Addr
 	tun       proto.GunService_TunServer
-	mu        sync.Mutex // mu protects reading
+	muReading sync.Mutex // muReading protects reading
+	muWriting sync.Mutex // muWriting protects writing
 	buf       []byte
 	offset    int
+
+	deadlineMu    sync.Mutex
+	readDeadline  *time.Timer
+	writeDeadline *time.Timer
+	readClosed    bool
+	writeClosed   bool
+	closed        bool
 }
 
 func (c *ServerConn) Read(p []byte) (n int, err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.deadlineMu.Lock()
+	if c.readClosed || c.closed {
+		c.deadlineMu.Unlock()
+		return 0, io.EOF
+	}
+	c.deadlineMu.Unlock()
+
+	c.muReading.Lock()
+	defer c.muReading.Unlock()
 	if c.buf != nil {
 		n = copy(p, c.buf[c.offset:])
 		c.offset += n
@@ -52,6 +67,15 @@ func (c *ServerConn) Read(p []byte) (n int, err error) {
 }
 
 func (c *ServerConn) Write(p []byte) (n int, err error) {
+	c.deadlineMu.Lock()
+	if c.writeClosed || c.closed {
+		c.deadlineMu.Unlock()
+		return 0, io.EOF
+	}
+	c.deadlineMu.Unlock()
+
+	c.muWriting.Lock()
+	defer c.muWriting.Unlock()
 	err = c.tun.Send(&proto.Hunk{Data: p})
 	if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
 		err = io.EOF
@@ -60,6 +84,7 @@ func (c *ServerConn) Write(p []byte) (n int, err error) {
 }
 
 func (c *ServerConn) Close() error {
+	c.closed = true
 	return nil
 }
 func (c *ServerConn) LocalAddr() net.Addr {
@@ -70,21 +95,76 @@ func (c *ServerConn) RemoteAddr() net.Addr {
 	return p.Addr
 }
 
-// SetDeadline is not implemented
 func (c *ServerConn) SetDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	if now := time.Now(); t.After(now) {
+		c.readClosed = false
+		c.writeClosed = false
+		if c.readDeadline != nil {
+			c.readDeadline.Reset(t.Sub(now))
+		} else {
+			c.readDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.readClosed = true
+			})
+		}
+		if c.writeDeadline != nil {
+			c.writeDeadline.Reset(t.Sub(now))
+		} else {
+			c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.writeClosed = true
+			})
+		}
+	} else {
+		c.readClosed = true
+		c.writeClosed = true
+	}
 	return nil
 }
 
-// SetReadDeadline is not implemented
 func (c *ServerConn) SetReadDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	if now := time.Now(); t.After(now) {
+		c.readClosed = false
+		if c.readDeadline != nil {
+			c.readDeadline.Reset(t.Sub(now))
+		} else {
+			c.readDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.readClosed = true
+			})
+		}
+	} else {
+		c.readClosed = true
+	}
 	return nil
 }
 
-// SetWriteDeadline is not implemented
 func (c *ServerConn) SetWriteDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
+	if now := time.Now(); t.After(now) {
+		c.writeClosed = false
+		if c.writeDeadline != nil {
+			c.writeDeadline.Reset(t.Sub(now))
+		} else {
+			c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
+				c.deadlineMu.Lock()
+				defer c.deadlineMu.Unlock()
+				c.writeClosed = true
+			})
+		}
+	} else {
+		c.writeClosed = true
+	}
 	return nil
 }
-
 
 type Server struct {
 	*grpc.Server
