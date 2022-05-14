@@ -105,6 +105,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 			return fmt.Errorf("relay error: %w", err)
 		}
 	case "udp":
+		log.Debug("vmess received a udp request")
 		// can dial any target
 		if err = relayUoT(dialer, lConn); err != nil {
 			var netErr net.Error

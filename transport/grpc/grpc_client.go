@@ -34,6 +34,8 @@ type ClientConn struct {
 	closer    context.CancelFunc
 	muReading sync.Mutex // muReading protects reading
 	muWriting sync.Mutex // muWriting protects writing
+	muRecv    sync.Mutex // muReading protects recv
+	muSend    sync.Mutex // muWriting protects send
 	buf       []byte
 	offset    int
 
@@ -84,6 +86,9 @@ func (c *ClientConn) Read(p []byte) (n int, err error) {
 	readDone := make(chan RecvResp, 1)
 	// pass channel to the function to avoid closure leak
 	go func(readDone chan RecvResp) {
+		// FIXME: not really abort the send so there is some problems when recover
+		c.muRecv.Lock()
+		defer c.muRecv.Unlock()
 		recv, e := c.tun.Recv()
 		readDone <- RecvResp{
 			hunk: recv,
@@ -126,6 +131,9 @@ func (c *ClientConn) Write(p []byte) (n int, err error) {
 	sendDone := make(chan error, 1)
 	// pass channel to the function to avoid closure leak
 	go func(sendDone chan error) {
+		// FIXME: not really abort the send so there is some problems when recover
+		c.muSend.Lock()
+		defer c.muSend.Unlock()
 		e := c.tun.Send(&proto.Hunk{Data: p})
 		sendDone <- e
 	}(sendDone)
@@ -171,10 +179,12 @@ func (c *ClientConn) SetDeadline(t time.Time) error {
 		select {
 		case <-c.readClosed:
 			c.readClosed = make(chan struct{})
+		default:
 		}
 		select {
 		case <-c.writeClosed:
 			c.writeClosed = make(chan struct{})
+		default:
 		}
 		// reset the deadline timer to make the c.readClosed and c.writeClosed with the new pointer (if it is)
 		if c.readDeadline != nil {
@@ -224,6 +234,7 @@ func (c *ClientConn) SetReadDeadline(t time.Time) error {
 		select {
 		case <-c.readClosed:
 			c.readClosed = make(chan struct{})
+		default:
 		}
 		// reset the deadline timer to make the c.readClosed and c.writeClosed with the new pointer (if it is)
 		if c.readDeadline != nil {
@@ -256,6 +267,7 @@ func (c *ClientConn) SetWriteDeadline(t time.Time) error {
 		select {
 		case <-c.writeClosed:
 			c.writeClosed = make(chan struct{})
+		default:
 		}
 		if c.writeDeadline != nil {
 			c.writeDeadline.Stop()
