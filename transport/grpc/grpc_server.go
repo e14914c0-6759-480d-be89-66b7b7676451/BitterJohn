@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
 )
@@ -28,18 +29,29 @@ type ServerConn struct {
 	deadlineMu    sync.Mutex
 	readDeadline  *time.Timer
 	writeDeadline *time.Timer
-	readClosed    bool
-	writeClosed   bool
-	closed        bool
+	readClosed    chan struct{}
+	writeClosed   chan struct{}
+	closed        chan struct{}
+}
+
+func NewServerConn(tun proto.GunService_TunServer, localAddr net.Addr) *ServerConn {
+	return &ServerConn{
+		tun:         tun,
+		localAddr:   localAddr,
+		readClosed:  make(chan struct{}),
+		writeClosed: make(chan struct{}),
+		closed:      make(chan struct{}),
+	}
 }
 
 func (c *ServerConn) Read(p []byte) (n int, err error) {
-	c.deadlineMu.Lock()
-	if c.readClosed || c.closed {
-		c.deadlineMu.Unlock()
+	select {
+	case <-c.readClosed:
+		return 0, os.ErrDeadlineExceeded
+	case <-c.closed:
 		return 0, io.EOF
+	default:
 	}
-	c.deadlineMu.Unlock()
 
 	c.muReading.Lock()
 	defer c.muReading.Unlock()
@@ -52,39 +64,74 @@ func (c *ServerConn) Read(p []byte) (n int, err error) {
 		}
 		return n, nil
 	}
-	recv, err := c.tun.Recv()
-	if err != nil {
-		if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
-			err = io.EOF
+	// set 1 to avoid channel leak
+	readDone := make(chan RecvResp, 1)
+	// pass channel to the function to avoid closure leak
+	go func(readDone chan RecvResp) {
+		recv, e := c.tun.Recv()
+		readDone <- RecvResp{
+			hunk: recv,
+			err:  e,
 		}
-		return 0, err
+	}(readDone)
+	select {
+	case <-c.readClosed:
+		return 0, os.ErrDeadlineExceeded
+	case <-c.closed:
+		return 0, io.EOF
+	case recvResp := <-readDone:
+		err = recvResp.err
+		if err != nil {
+			if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
+				err = io.EOF
+			}
+			return 0, err
+		}
+		n = copy(p, recvResp.hunk.Data)
+		c.buf = pool.Get(len(recvResp.hunk.Data) - n)
+		copy(c.buf, recvResp.hunk.Data[n:])
+		c.offset = 0
+		return n, nil
 	}
-	n = copy(p, recv.Data)
-	c.buf = pool.Get(len(recv.Data) - n)
-	copy(c.buf, recv.Data[n:])
-	c.offset = 0
-	return n, nil
 }
 
 func (c *ServerConn) Write(p []byte) (n int, err error) {
-	c.deadlineMu.Lock()
-	if c.writeClosed || c.closed {
-		c.deadlineMu.Unlock()
+	select {
+	case <-c.writeClosed:
+		return 0, os.ErrDeadlineExceeded
+	case <-c.closed:
 		return 0, io.EOF
+	default:
 	}
-	c.deadlineMu.Unlock()
 
 	c.muWriting.Lock()
 	defer c.muWriting.Unlock()
-	err = c.tun.Send(&proto.Hunk{Data: p})
-	if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
-		err = io.EOF
+	// set 1 to avoid channel leak
+	sendDone := make(chan error, 1)
+	// pass channel to the function to avoid closure leak
+	go func(sendDone chan error) {
+		e := c.tun.Send(&proto.Hunk{Data: p})
+		sendDone <- e
+	}(sendDone)
+	select {
+	case <-c.writeClosed:
+		return 0, os.ErrDeadlineExceeded
+	case <-c.closed:
+		return 0, io.EOF
+	case err = <-sendDone:
+		if code := status.Code(err); code == codes.Unavailable || status.Code(err) == codes.OutOfRange {
+			err = io.EOF
+		}
+		return len(p), err
 	}
-	return len(p), err
 }
 
 func (c *ServerConn) Close() error {
-	c.closed = true
+	select {
+	case <-c.closed:
+	default:
+		close(c.closed)
+	}
 	return nil
 }
 func (c *ServerConn) LocalAddr() net.Addr {
@@ -99,29 +146,51 @@ func (c *ServerConn) SetDeadline(t time.Time) error {
 	c.deadlineMu.Lock()
 	defer c.deadlineMu.Unlock()
 	if now := time.Now(); t.After(now) {
-		c.readClosed = false
-		c.writeClosed = false
+		// refresh the deadline if the deadline has been exceeded
+		select {
+		case <-c.readClosed:
+			c.readClosed = make(chan struct{})
+		}
+		select {
+		case <-c.writeClosed:
+			c.writeClosed = make(chan struct{})
+		}
+		// reset the deadline timer to make the c.readClosed and c.writeClosed with the new pointer (if it is)
 		if c.readDeadline != nil {
-			c.readDeadline.Reset(t.Sub(now))
-		} else {
-			c.readDeadline = time.AfterFunc(t.Sub(now), func() {
-				c.deadlineMu.Lock()
-				defer c.deadlineMu.Unlock()
-				c.readClosed = true
-			})
+			c.readDeadline.Stop()
 		}
+		c.readDeadline = time.AfterFunc(t.Sub(now), func() {
+			c.deadlineMu.Lock()
+			defer c.deadlineMu.Unlock()
+			select {
+			case <-c.readClosed:
+			default:
+				close(c.readClosed)
+			}
+		})
 		if c.writeDeadline != nil {
-			c.writeDeadline.Reset(t.Sub(now))
-		} else {
-			c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
-				c.deadlineMu.Lock()
-				defer c.deadlineMu.Unlock()
-				c.writeClosed = true
-			})
+			c.writeDeadline.Stop()
 		}
+		c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
+			c.deadlineMu.Lock()
+			defer c.deadlineMu.Unlock()
+			select {
+			case <-c.writeClosed:
+			default:
+				close(c.writeClosed)
+			}
+		})
 	} else {
-		c.readClosed = true
-		c.writeClosed = true
+		select {
+		case <-c.readClosed:
+		default:
+			close(c.readClosed)
+		}
+		select {
+		case <-c.writeClosed:
+		default:
+			close(c.writeClosed)
+		}
 	}
 	return nil
 }
@@ -130,18 +199,30 @@ func (c *ServerConn) SetReadDeadline(t time.Time) error {
 	c.deadlineMu.Lock()
 	defer c.deadlineMu.Unlock()
 	if now := time.Now(); t.After(now) {
-		c.readClosed = false
-		if c.readDeadline != nil {
-			c.readDeadline.Reset(t.Sub(now))
-		} else {
-			c.readDeadline = time.AfterFunc(t.Sub(now), func() {
-				c.deadlineMu.Lock()
-				defer c.deadlineMu.Unlock()
-				c.readClosed = true
-			})
+		// refresh the deadline if the deadline has been exceeded
+		select {
+		case <-c.readClosed:
+			c.readClosed = make(chan struct{})
 		}
+		// reset the deadline timer to make the c.readClosed and c.writeClosed with the new pointer (if it is)
+		if c.readDeadline != nil {
+			c.readDeadline.Stop()
+		}
+		c.readDeadline = time.AfterFunc(t.Sub(now), func() {
+			c.deadlineMu.Lock()
+			defer c.deadlineMu.Unlock()
+			select {
+			case <-c.readClosed:
+			default:
+				close(c.readClosed)
+			}
+		})
 	} else {
-		c.readClosed = true
+		select {
+		case <-c.readClosed:
+		default:
+			close(c.readClosed)
+		}
 	}
 	return nil
 }
@@ -150,18 +231,29 @@ func (c *ServerConn) SetWriteDeadline(t time.Time) error {
 	c.deadlineMu.Lock()
 	defer c.deadlineMu.Unlock()
 	if now := time.Now(); t.After(now) {
-		c.writeClosed = false
-		if c.writeDeadline != nil {
-			c.writeDeadline.Reset(t.Sub(now))
-		} else {
-			c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
-				c.deadlineMu.Lock()
-				defer c.deadlineMu.Unlock()
-				c.writeClosed = true
-			})
+		// refresh the deadline if the deadline has been exceeded
+		select {
+		case <-c.writeClosed:
+			c.writeClosed = make(chan struct{})
 		}
+		if c.writeDeadline != nil {
+			c.writeDeadline.Stop()
+		}
+		c.writeDeadline = time.AfterFunc(t.Sub(now), func() {
+			c.deadlineMu.Lock()
+			defer c.deadlineMu.Unlock()
+			select {
+			case <-c.writeClosed:
+			default:
+				close(c.writeClosed)
+			}
+		})
 	} else {
-		c.writeClosed = true
+		select {
+		case <-c.writeClosed:
+		default:
+			close(c.writeClosed)
+		}
 	}
 	return nil
 }
@@ -173,10 +265,7 @@ type Server struct {
 }
 
 func (g Server) Tun(tun proto.GunService_TunServer) error {
-	if err := g.HandleConn(&ServerConn{
-		localAddr: g.LocalAddr,
-		tun:       tun,
-	}); err != nil {
+	if err := g.HandleConn(NewServerConn(tun, g.LocalAddr)); err != nil {
 		if errors.Is(err, server.ErrPassageAbuse) ||
 			errors.Is(err, protocol.ErrReplayAttack) {
 			log.Warn("handleConn: %v", err)

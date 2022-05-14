@@ -25,7 +25,13 @@ func SelectTimeout(packet []byte) time.Duration {
 
 func RelayUDP(dst *net.UDPConn, laddr net.Addr, src net.PacketConn, timeout time.Duration) (err error) {
 	var n int
-	buf := pool.Get(ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
+	var mtu int
+	if src.LocalAddr() != nil {
+		mtu = ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP)
+	} else {
+		mtu = 1500
+	}
+	buf := pool.Get(mtu)
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
@@ -44,7 +50,13 @@ func RelayUDP(dst *net.UDPConn, laddr net.Addr, src net.PacketConn, timeout time
 func RelayUDPToConn(dst net.Conn, src net.PacketConn, timeout time.Duration) (err error) {
 	var n int
 	var addr net.Addr
-	buf := pool.Get(ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP))
+	var mtu int
+	if src.LocalAddr() != nil {
+		mtu = ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP)
+	} else {
+		mtu = 1500
+	}
+	buf := pool.Get(mtu)
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))

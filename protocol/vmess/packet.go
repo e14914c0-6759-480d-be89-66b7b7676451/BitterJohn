@@ -52,7 +52,11 @@ func (c *Conn) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 func (c *Conn) LocalAddr() net.Addr {
 	switch c.metadata.Network {
 	case "udp":
-		return protocol.TCPAddrToUDPAddr(c.Conn.LocalAddr().(*net.TCPAddr))
+		if c.Conn.LocalAddr() != nil {
+			return protocol.TCPAddrToUDPAddr(c.Conn.LocalAddr().(*net.TCPAddr))
+		} else {
+			return nil
+		}
 	default:
 		return c.Conn.LocalAddr()
 	}
@@ -61,7 +65,11 @@ func (c *Conn) LocalAddr() net.Addr {
 func (c *Conn) RemoteAddr() net.Addr {
 	switch c.metadata.Network {
 	case "udp":
-		return protocol.TCPAddrToUDPAddr(c.Conn.RemoteAddr().(*net.TCPAddr))
+		if c.Conn.RemoteAddr() != nil {
+			return protocol.TCPAddrToUDPAddr(c.Conn.RemoteAddr().(*net.TCPAddr))
+		} else {
+			return nil
+		}
 	default:
 		return c.Conn.RemoteAddr()
 	}

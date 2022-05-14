@@ -145,7 +145,13 @@ func (s *Server) relay(laddr net.Addr, rConn net.PacketConn, timeout time.Durati
 		n           int
 		shadowBytes []byte
 	)
-	buf := pool.Get(BasicLen + ip_mtu_trie.MTUTrie.GetMTU(rConn.LocalAddr().(*net.UDPAddr).IP))
+	var mtu int
+	if rConn.LocalAddr() != nil {
+		mtu = ip_mtu_trie.MTUTrie.GetMTU(rConn.LocalAddr().(*net.UDPAddr).IP)
+	} else {
+		mtu = 1500
+	}
+	buf := pool.Get(BasicLen + mtu)
 	defer pool.Put(buf)
 	var inKey shadowsocks.Key
 	inKey = shadowsocks.Key{
