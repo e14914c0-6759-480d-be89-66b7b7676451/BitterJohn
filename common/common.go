@@ -5,6 +5,8 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"github.com/eknkc/basex"
+	"hash/fnv"
 	"math"
 	"math/big"
 	"math/rand"
@@ -19,6 +21,10 @@ import (
 )
 
 const Alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
+const Alphabet64Grpc = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789_."
+
+var Base62Encoder, _ = basex.NewEncoding(Alphabet)
+var Base64GrpcEncoder, _ = basex.NewEncoding(Alphabet64Grpc)
 
 func BytesIncBigEndian(b []byte) {
 	for i := len(b) - 1; i >= 0; i-- {
@@ -163,6 +169,7 @@ func ShouldParseUint8(a string) uint8 {
 	i, _ := strconv.ParseUint(a, 10, 8)
 	return uint8(i)
 }
+
 // StringToUUID5 is from https://github.com/XTLS/Xray-core/issues/158
 func StringToUUID5(str string) string {
 	var Nil [16]byte
@@ -187,13 +194,12 @@ func StringToUUID5(str string) string {
 
 func StringsHas(strs []string, str string) bool {
 	for _, s := range strs {
-		if s == str{
+		if s == str {
 			return true
 		}
 	}
 	return false
 }
-
 
 func HostsToSNI(hosts string, rootDomain string) (sni string, err error) {
 	if hostnames := strings.Split(hosts, ","); len(hostnames) > 0 {
@@ -222,4 +228,36 @@ func HostToSNI(host string, rootDomain string) (sni string, err error) {
 		sni = strings.ReplaceAll(host, ".", "-") + "." + rootDomain
 	}
 	return sni, nil
+}
+
+func RangeHash(in []byte, minlength int, maxlength int) (out []byte) {
+	if minlength > maxlength {
+		minlength = maxlength
+	}
+	h := fnv.New64()
+	h.Write(in)
+	seed := Abs64(int64(h.Sum64()))
+	length := minlength + int(seed)%(maxlength-minlength+1)
+	rnd := rand.New(rand.NewSource(seed))
+	out = make([]byte, length)
+	rnd.Read(out)
+	return out
+}
+
+func GenServiceName(b []byte) string {
+	if len(b) == 0 {
+		return "GunService"
+	}
+	return Base64GrpcEncoder.Encode(RangeHash(b, 3, 12))
+}
+
+func SimplyGetParam(source string, key string) (value string) {
+	fields := strings.Split(source, ";")
+	for _, field := range fields {
+		f := strings.SplitN(field, "=", 2)
+		if len(f) == 2 && key == f[0] {
+			return f[1]
+		}
+	}
+	return ""
 }

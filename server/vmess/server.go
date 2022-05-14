@@ -151,7 +151,8 @@ func (s *Server) Listen(addr string) (err error) {
 			LocalAddr:  lt.Addr(),
 			HandleConn: s.handleConn,
 		}
-		proto.RegisterGunServiceServerX(s.grpc.Server, s.grpc, "GunService")
+		serviceName := common.Base64GrpcEncoder.Encode(common.RangeHash([]byte(config.ParamsObj.John.Ticket), 3, 12))
+		proto.RegisterGunServiceServerX(s.grpc.Server, s.grpc, serviceName)
 
 		if err = s.grpc.Serve(lt); err != nil {
 			return err
@@ -347,6 +348,7 @@ func (s *Server) register() error {
 		Argument: model.Argument{
 			Protocol: s.protocol,
 			Password: manager.In.Password,
+			Method:   "serviceName=" + common.GenServiceName([]byte(config.ParamsObj.John.Ticket)),
 		},
 		BandwidthLimit: bandwidthLimit,
 		NoRelay:        s.arg.NoRelay,

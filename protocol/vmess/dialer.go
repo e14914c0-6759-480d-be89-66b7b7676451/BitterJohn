@@ -17,12 +17,13 @@ func init() {
 }
 
 type Dialer struct {
-	protocol     model.Protocol
-	proxyAddress string
-	proxySNI     string
-	nextDialer   proxy.Dialer
-	metadata     protocol.Metadata
-	key          []byte
+	protocol        model.Protocol
+	proxyAddress    string
+	proxySNI        string
+	grpcServiceName string
+	nextDialer      proxy.Dialer
+	metadata        protocol.Metadata
+	key             []byte
 }
 
 func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, error) {
@@ -43,11 +44,12 @@ func NewDialer(nextDialer proxy.Dialer, header protocol.Header) (proxy.Dialer, e
 	}
 	//log.Trace("vmess.NewDialer: metadata: %v, password: %v", metadata, password)
 	return &Dialer{
-		proxyAddress: header.ProxyAddress,
-		proxySNI:     header.SNI,
-		nextDialer:   nextDialer,
-		metadata:     metadata,
-		key:          NewID(id).CmdKey(),
+		proxyAddress:    header.ProxyAddress,
+		proxySNI:        header.SNI,
+		grpcServiceName: header.GrpcServiceName,
+		nextDialer:      nextDialer,
+		metadata:        metadata,
+		key:             NewID(id).CmdKey(),
 	}, nil
 }
 
@@ -75,8 +77,9 @@ func (d *Dialer) Dial(network string, addr string) (c net.Conn, err error) {
 
 		if d.protocol == model.ProtocolVMessTlsGrpc {
 			d.nextDialer = &grpc.Dialer{
-				NextDialer: &manager.DialerConverter{Dialer: d.nextDialer},
-				ServerName: d.proxySNI,
+				NextDialer:  &manager.DialerConverter{Dialer: d.nextDialer},
+				ServiceName: d.grpcServiceName,
+				ServerName:  d.proxySNI,
 			}
 		}
 

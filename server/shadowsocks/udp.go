@@ -91,11 +91,12 @@ func (s *Server) GetOrBuildUDPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 		if passage.Out != nil {
 			sni, _ := common.HostToSNI(passage.Out.Host, s.sweetLisa.Host)
 			dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, protocol.Header{
-				ProxyAddress: net.JoinHostPort(passage.Out.Host, passage.Out.Port),
-				SNI:          sni,
-				Cipher:       passage.Out.Method,
-				Password:     passage.Out.Password,
-				IsClient:     true,
+				ProxyAddress:    net.JoinHostPort(passage.Out.Host, passage.Out.Port),
+				SNI:             sni,
+				GrpcServiceName: common.SimplyGetParam(passage.Out.Method, "serviceName"),
+				Cipher:          passage.Out.Method,
+				Password:        passage.Out.Password,
+				IsClient:        true,
 			})
 			if err != nil {
 				return nil, nil, nil, "", err
