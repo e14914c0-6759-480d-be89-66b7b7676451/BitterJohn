@@ -350,10 +350,10 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 		return client, canceller, nil
 	}
 	globalCCAccess.Unlock()
-	cc, err := grpc.Dial(address,
+	cc, err := grpc.DialContext(ctx, address,
 		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(roots, serverName)),
 		grpc.WithContextDialer(func(ctxGrpc context.Context, s string) (net.Conn, error) {
-			return dialer.DialContext(ctx, "tcp", s)
+			return dialer.DialContext(ctxGrpc, "tcp", s)
 		}), grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay:  500 * time.Millisecond,
