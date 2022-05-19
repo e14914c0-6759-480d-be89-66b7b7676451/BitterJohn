@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/Qv2ray/gun/pkg/cert"
 	"github.com/Qv2ray/gun/pkg/proto"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
@@ -346,6 +347,9 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 	// TODO Should support chain proxy to the same destination
 	globalCCAccess.Lock()
 	if client, found := globalCCMap[address]; found && client.GetState() != connectivity.Shutdown {
+		if stat := client.GetState(); stat != connectivity.Ready && stat != connectivity.Idle {
+			log.Debug("grpc client state: %v", stat.String())
+		}
 		globalCCAccess.Unlock()
 		return client, canceller, nil
 	}
