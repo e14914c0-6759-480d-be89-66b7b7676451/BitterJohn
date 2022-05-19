@@ -237,7 +237,7 @@ func RangeHash(in []byte, minlength int, maxlength int) (out []byte) {
 	h := fnv.New64()
 	h.Write(in)
 	seed := Abs64(int64(h.Sum64()))
-	length := minlength + int(seed%math.MaxInt+1)%(maxlength-minlength+1)
+	length := minlength + int(seed%int64(maxlength-minlength+1))
 	rnd := rand.New(rand.NewSource(seed))
 	out = make([]byte, length)
 	rnd.Read(out)
