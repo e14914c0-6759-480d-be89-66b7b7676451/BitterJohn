@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"io"
@@ -366,6 +367,10 @@ func getGrpcClientConn(ctx context.Context, dialer proxy.ContextDialer, serverNa
 				MaxDelay:   19 * time.Second,
 			},
 			MinConnectTimeout: 5 * time.Second,
+		}), grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                30 * time.Second,
+			Timeout:             10 * time.Second,
+			PermitWithoutStream: true,
 		}),
 	)
 	globalCCAccess.Lock()
