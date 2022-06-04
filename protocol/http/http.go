@@ -13,11 +13,11 @@ import (
 // HttpProxy is an HTTP/HTTPS proxy.
 type HttpProxy struct {
 	TlsConfig *tls.Config
-	Host     string
-	HaveAuth bool
-	Username string
-	Password string
-	dialer   proxy.Dialer
+	Host      string
+	HaveAuth  bool
+	Username  string
+	Password  string
+	dialer    proxy.Dialer
 }
 
 func NewHTTPProxy(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
@@ -30,9 +30,13 @@ func NewHTTPProxy(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 		s.Password, _ = u.User.Password()
 	}
 	if u.Scheme == "https" {
+		serverName := u.Query().Get("sni")
+		if serverName == "" {
+			serverName = u.Hostname()
+		}
 		s.TlsConfig = &tls.Config{
 			NextProtos: []string{"h2", "http/1.1"},
-			ServerName: u.Query().Get("sni"),
+			ServerName: serverName,
 		}
 	}
 	return s, nil
