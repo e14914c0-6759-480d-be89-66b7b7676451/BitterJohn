@@ -3,19 +3,18 @@ module github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn
 go 1.18
 
 require (
-	ekyu.moe/leb128 v0.0.0-20190626180622-d3722dc409a8
 	github.com/1lann/promptui v0.0.0-20201231203810-3d80f6bc68f3
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/Qv2ray/gun v0.0.0-20210314140700-95a65981f2f8
 	github.com/adrg/xdg v0.4.0
 	github.com/cloudflare/cloudflare-go v0.26.0
-	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20220512102740-86c858b53775
+	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20220604073428-3c79bd46087c
+	github.com/eknkc/basex v1.0.1
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mzz2017/disk-bloom v1.0.1
-	github.com/pkg/errors v0.9.1
-	github.com/seiflotfy/cuckoofilter v0.0.0-20201222105146-bc6005554a0c
+	github.com/mzz2017/softwind v0.0.0-20220604073236-81398751c939
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0
 	github.com/v2rayA/beego/v2 v2.0.4
@@ -31,7 +30,6 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/dgryski/go-metro v0.0.0-20200812162917-85c65e2d0165 // indirect
-	github.com/eknkc/basex v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/gin v1.7.4 // indirect
@@ -57,7 +55,9 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
+	github.com/seiflotfy/cuckoofilter v0.0.0-20201222105146-bc6005554a0c // indirect
 	github.com/shiena/ansicolor v0.0.0-20200904210342-c7312218db18 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
@@ -74,4 +74,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-//replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa
+replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa

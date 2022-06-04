@@ -12,12 +12,12 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	grpc2 "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/transport/grpc"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
+	"github.com/mzz2017/softwind/protocol"
+	"github.com/mzz2017/softwind/protocol/vmess"
+	grpc2 "github.com/mzz2017/softwind/transport/grpc"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
@@ -38,7 +38,7 @@ type Server struct {
 	closed    chan struct{}
 	sweetLisa config.Lisa
 	arg       server.Argument
-	protocol  model.Protocol
+	protocol  protocol.Protocol
 	lastAlive time.Time
 
 	listener        net.Listener
@@ -70,7 +70,7 @@ func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
 	return s, nil
 }
 
-func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument, protocol model.Protocol) (server.Server, error) {
+func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument, protocol protocol.Protocol) (server.Server, error) {
 	s, err := New(valueCtx, dialer)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config
 }
 
 func NewJohnTCP(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
-	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, model.ProtocolVMessTCP)
+	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, protocol.ProtocolVMessTCP)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func NewJohnTCP(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost con
 }
 
 func NewJohnTlsGrpc(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
-	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, model.ProtocolVMessTlsGrpc)
+	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, protocol.ProtocolVMessTlsGrpc)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (s *Server) Listen(addr string) (err error) {
 	s.startTimestamp = time.Now().Unix()
 	s.listener = lt
 	switch s.protocol {
-	case model.ProtocolVMessTCP:
+	case protocol.ProtocolVMessTCP:
 		for {
 			conn, err := lt.Accept()
 			if err != nil {
@@ -134,7 +134,7 @@ func (s *Server) Listen(addr string) (err error) {
 				}
 			}()
 		}
-	case model.ProtocolVMessTlsGrpc:
+	case protocol.ProtocolVMessTlsGrpc:
 		sni, err := common.HostsToSNI(s.arg.Hostnames, s.sweetLisa.Host)
 		if err != nil {
 			return err
@@ -200,7 +200,7 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 		}
 		psgs[i].inCmdKey = vmess.NewID(id).CmdKey()
 		psgs[i].inEAuthIDBlock, _ = aes.NewCipher(vmess.KDF(psgs[i].inCmdKey, []byte(vmess.KDFSaltConstAuthIDEncryptionKey))[:16])
-		if psg.Out != nil && psg.Out.Protocol == model.ProtocolVMessTCP {
+		if psg.Out != nil && psg.Out.Protocol == protocol.ProtocolVMessTCP {
 			id, err := uuid.Parse(psgs[i].Out.Password)
 			if err != nil {
 				log.Warn("LocalizePassages: invalid uuid: %v", psgs[i].In.Password)

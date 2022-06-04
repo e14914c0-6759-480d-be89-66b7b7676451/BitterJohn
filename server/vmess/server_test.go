@@ -2,7 +2,7 @@ package vmess
 
 import (
 	"context"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
+	"github.com/mzz2017/softwind/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"golang.org/x/net/proxy"

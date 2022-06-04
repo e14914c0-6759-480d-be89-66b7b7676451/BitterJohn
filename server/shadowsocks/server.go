@@ -10,9 +10,9 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/shadowsocks"
+	"github.com/mzz2017/softwind/pool"
+	"github.com/mzz2017/softwind/protocol"
+	"github.com/mzz2017/softwind/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	gonanoid "github.com/matoous/go-nanoid"
@@ -144,7 +144,7 @@ func (s *Server) register() error {
 		Hosts:  s.arg.Hostnames,
 		Port:   s.arg.Port,
 		Argument: model.Argument{
-			Protocol: model.ProtocolShadowsocks,
+			Protocol: protocol.ProtocolShadowsocks,
 			Password: manager.In.Password,
 			Method:   manager.In.Method,
 		},

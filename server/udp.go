@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pool"
+	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/net/dns/dnsmessage"
 )
 

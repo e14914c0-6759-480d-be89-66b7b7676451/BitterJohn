@@ -10,9 +10,9 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copyfile"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
+	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+	"github.com/mzz2017/softwind/protocol"
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
@@ -176,7 +176,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		Label: "Protocol",
 		Items: []string{"vmess", "vmess+tls+grpc", "shadowsocks"},
 	}
-	_, protocol, err := sel.Run()
+	_, proto, err := sel.Run()
 
 	prompt := &promptui.Prompt{
 		Label:    "The host of SweetLisa",
@@ -198,7 +198,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	}
 
 	randPort := strconv.Itoa(1024 + fastrand.Intn(30000))
-	if protocol == string(model.ProtocolVMessTlsGrpc) {
+	if proto == string(protocol.ProtocolVMessTlsGrpc) {
 		randPort = "50051"
 	}
 	prompt = &promptui.Prompt{
@@ -331,7 +331,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 				TotalLimitGiB:    totalLimitGiB,
 			},
 			NoRelay:  noRelay,
-			Protocol: protocol,
+			Protocol: proto,
 		},
 	}, true, nil
 }

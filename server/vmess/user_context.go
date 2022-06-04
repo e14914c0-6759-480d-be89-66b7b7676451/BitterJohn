@@ -3,7 +3,7 @@ package vmess
 import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lrulist"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
+	"github.com/mzz2017/softwind/pkg/fastrand"
 	"time"
 )
 

@@ -9,13 +9,13 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdn_validator"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/disk_bloom"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/fastrand"
+	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/resolver"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/protocol/vmess"
+	"github.com/mzz2017/softwind/protocol"
+	"github.com/mzz2017/softwind/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/net/proxy"
@@ -72,18 +72,18 @@ func Run() (err error) {
 		ctx    context.Context
 		dialer proxy.Dialer
 	)
-	if !model.Protocol(conf.John.Protocol).Valid() {
+	if !protocol.Protocol(conf.John.Protocol).Valid() {
 		return fmt.Errorf("protocol %v is invalid", strconv.Quote(conf.John.Protocol))
 	}
-	switch proto := model.Protocol(conf.John.Protocol); proto {
-	case model.ProtocolShadowsocks:
+	switch proto := protocol.Protocol(conf.John.Protocol); proto {
+	case protocol.ProtocolShadowsocks:
 		bloom, err := disk_bloom.NewBloom(filepath.Join(filepath.Dir(v.ConfigFileUsed()), "disk_bloom_*"), []byte(DiskBloomSalt))
 		if err != nil {
 			return fmt.Errorf("%v", err)
 		}
 		ctx = context.WithValue(context.Background(), "bloom", bloom)
 		dialer = server.FullconePrivateLimitedDialer
-	case model.ProtocolVMessTCP, model.ProtocolVMessTlsGrpc:
+	case protocol.ProtocolVMessTCP, protocol.ProtocolVMessTlsGrpc:
 		doubleCuckoo := vmess.NewReplayFilter(120)
 		ctx = context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo)
 		dialer = server.FullconePrivateLimitedDialer
