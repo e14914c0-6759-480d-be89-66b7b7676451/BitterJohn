@@ -5,10 +5,10 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/shadowsocks"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"io"
 	"net"
 	"strconv"
@@ -159,7 +159,10 @@ func (s *Server) relay(laddr net.Addr, rConn net.PacketConn, timeout time.Durati
 		CipherConf: shadowsocks.CiphersConf[passage.In.Method],
 		MasterKey:  passage.inMasterKey,
 	}
-	var addr net.Addr
+	var (
+		addr net.Addr
+		sg   shadowsocks.SaltGenerator
+	)
 	for {
 		_ = rConn.SetReadDeadline(time.Now().Add(timeout))
 		n, addr, err = rConn.ReadFrom(buf)
@@ -199,7 +202,14 @@ func (s *Server) relay(laddr net.Addr, rConn net.PacketConn, timeout time.Durati
 			pool.Put(b)
 		}
 		// FIXME: here does not use shadowsocks.NewUDPConn but it is okay
-		shadowBytes, err = shadowsocks.EncryptUDPFromPool(inKey, buf[:n])
+		sg, err = shadowsocks.GetSaltGenerator(inKey.MasterKey, inKey.CipherConf.SaltLen)
+		if err != nil {
+			log.Warn("relay: GetSaltGenerator: %v", err)
+			continue
+		}
+		salt := sg.Get()
+		shadowBytes, err = shadowsocks.EncryptUDPFromPool(inKey, buf[:n], salt)
+		pool.Put(salt)
 		if err != nil {
 			log.Warn("relay: EncryptUDPFromPool: %v", err)
 			continue
