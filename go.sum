@@ -310,8 +310,8 @@ github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9G
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/mzz2017/disk-bloom v1.0.1 h1:rEF9MiXd9qMW3ibRpqcerLXULoTgRlM21yqqJl1B90M=
 github.com/mzz2017/disk-bloom v1.0.1/go.mod h1:JLHETtUu44Z6iBmsqzkOtFlRvXSlKnxjwiBRDapizDI=
-github.com/mzz2017/softwind v0.0.0-20220618193057-76918abd9fc0 h1:R3v12M/Bn9IcxueKshq/Q86WMuOLIgPu+rhyi6vnR/8=
-github.com/mzz2017/softwind v0.0.0-20220618193057-76918abd9fc0/go.mod h1:6V5PoHvQn6dACcasIl91uWz4sWKvcPknbbc40XQzia8=
+github.com/mzz2017/softwind v0.0.0-20220619032543-fd114cc9c647 h1:f8g1OfTlSjQ4QybEqgxtkvd6vm0X1THd2GHPfkNdrhQ=
+github.com/mzz2017/softwind v0.0.0-20220619032543-fd114cc9c647/go.mod h1:6V5PoHvQn6dACcasIl91uWz4sWKvcPknbbc40XQzia8=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/olekukonko/tablewriter v0.0.5/go.mod h1:hPp6KlRPjbx+hW8ykQs1w3UBbZlj6HuIJcUGPhkA7kY=
