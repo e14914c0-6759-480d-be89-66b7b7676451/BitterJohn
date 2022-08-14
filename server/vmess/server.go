@@ -144,8 +144,13 @@ func (s *Server) Listen(addr string) (err error) {
 			Prompt:     autocert.AcceptTOS,
 			HostPolicy: autocert.HostWhitelist(sni),
 		}
-		s.autocertServer = &http.Server{Addr: ":http", Handler: m.HTTPHandler(nil)}
-		go s.autocertServer.ListenAndServe()
+		s.autocertServer = &http.Server{Addr: ":80", Handler: m.HTTPHandler(nil)}
+		go func() {
+			log.Alert("BitterJohn is listening at 80 for ACME Challenges")
+			if err := s.autocertServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Fatal("autocertServer: %v", err)
+			}
+		}()
 		s.grpc = grpc2.Server{
 			Server:     grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: m.GetCertificate, NextProtos: []string{"h2"}}))),
 			LocalAddr:  lt.Addr(),

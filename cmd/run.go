@@ -106,7 +106,6 @@ func Run() (err error) {
 	}
 	log.Alert("Protocol: %v", conf.John.Protocol)
 	if common.StringsHas(strings.Split(conf.John.Protocol, "+"), "tls") {
-		log.Alert("BitterJohn is listening at 80 for ACME Challenges")
 		// waiting for the record
 		domain, err := common.HostsToSNI(conf.John.Hostname, conf.Lisa.Host)
 		if err != nil {
