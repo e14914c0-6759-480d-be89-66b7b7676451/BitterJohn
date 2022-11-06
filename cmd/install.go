@@ -5,16 +5,15 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
-	"github.com/1lann/promptui"
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copyfile"
-	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/protocol"
-	"github.com/google/uuid"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 	"net"
 	"net/http"
@@ -46,7 +45,8 @@ func init() {
 	installCmd.PersistentFlags().BoolP("gen-config", "g", false, "generate config from user input")
 }
 
-func hostsValidator(str string) error {
+func hostsValidator(ans interface{}) error {
+	str := ans.(string)
 	if len(str) == 0 {
 		return fmt.Errorf("host length cannot be zero")
 	}
@@ -59,7 +59,8 @@ func hostsValidator(str string) error {
 	return nil
 }
 
-func hostValidator(str string) error {
+func hostValidator(ans interface{}) error {
+	str := ans.(string)
 	e := fmt.Errorf("Invalid Hostname")
 	if net.ParseIP(str) != nil {
 		return nil
@@ -78,7 +79,8 @@ func hostValidator(str string) error {
 	return nil
 }
 
-func portValidator(str string) error {
+func portValidator(ans interface{}) error {
+	str := ans.(string)
 	e := fmt.Errorf("Invalid Port")
 	port, err := strconv.Atoi(str)
 	if err != nil {
@@ -90,7 +92,8 @@ func portValidator(str string) error {
 	return nil
 }
 
-func dayValidator(str string) error {
+func dayValidator(ans interface{}) error {
+	str := ans.(string)
 	e := fmt.Errorf("Invalid Day")
 	day, err := strconv.Atoi(str)
 	if err != nil {
@@ -102,7 +105,8 @@ func dayValidator(str string) error {
 	return nil
 }
 
-func uint64Validator(str string) error {
+func uint64Validator(ans interface{}) error {
+	str := ans.(string)
 	e := fmt.Errorf("Invalid Uint64")
 	_, err := strconv.ParseUint(str, 10, 64)
 	if err != nil {
@@ -111,7 +115,8 @@ func uint64Validator(str string) error {
 	return nil
 }
 
-func limitValidator(str string) error {
+func limitValidator(ans interface{}) error {
+	str := ans.(string)
 	e := fmt.Errorf("Invalid Limit Format")
 	if len(str) == 0 {
 		return e
@@ -128,16 +133,9 @@ func limitValidator(str string) error {
 	return nil
 }
 
-func uuidValidator(str string) error {
-	e := fmt.Errorf("Invalid ChatIdentifier")
-	if _, err := uuid.Parse(str); err != nil {
-		return e
-	}
-	return nil
-}
-
-func minLengthValidatorFactory(minLength int) promptui.ValidateFunc {
-	return func(str string) error {
+func minLengthValidatorFactory(minLength int) survey.Validator {
+	return func(ans interface{}) error {
+		str := ans.(string)
 		e := fmt.Errorf("Too short")
 		if len(str) < minLength {
 			return e
@@ -146,7 +144,8 @@ func minLengthValidatorFactory(minLength int) promptui.ValidateFunc {
 	}
 }
 
-func addressValidator(str string) error {
+func addressValidator(ans interface{}) error {
+	str := ans.(string)
 	e := fmt.Errorf("Invalid Adderss")
 	host, port, err := net.SplitHostPort(str)
 	if err != nil {
@@ -162,60 +161,59 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if _, err := os.Stat(targetConfigPath); err != nil && !os.IsNotExist(err) {
 		return nil, false, err
 	} else if err == nil {
-		prompt := &promptui.Prompt{
-			Label:     fmt.Sprintf("The file %v exists. Overwrite", targetConfigPath),
-			IsConfirm: true,
-		}
-		_, err := prompt.Run()
-		if err != nil {
+		var overwrite bool
+		survey.AskOne(&survey.Confirm{
+			Message: fmt.Sprintf("The file %v exists. Overwrite?", targetConfigPath),
+		}, &overwrite)
+		if !overwrite {
 			return nil, false, nil
 		}
 	}
 
-	sel := &promptui.Select{
-		Label: "Protocol",
-		Items: []string{"vmess", "vmess+tls+grpc", "shadowsocks"},
-	}
-	_, proto, err := sel.Run()
-
-	prompt := &promptui.Prompt{
-		Label:    "The host of SweetLisa",
-		Validate: hostValidator,
-		Default:  "sweetlisa.tuta.cc",
-	}
-	sweetLisaHost, err := prompt.Run()
-	if err != nil {
+	var (
+		proto         string
+		sweetLisaHost string
+		ticket        string
+		listen        string
+		hostname      string
+		strPort       string
+		name          string
+	)
+	if err := survey.AskOne(&survey.Select{
+		Message: "Portocol:",
+		Default: "vmess+tls+grpc",
+		Options: []string{"vmess", "vmess+tls+grpc", "shadowsocks"},
+	}, &proto, survey.WithValidator(survey.Required)); err != nil {
 		return nil, false, err
 	}
-
-	prompt = &promptui.Prompt{
-		Label:    "Server Ticket",
-		Validate: minLengthValidatorFactory(15),
-	}
-	ticket, err := prompt.Run()
-	if err != nil {
+	if err := survey.AskOne(&survey.Input{
+		Message: "The host of SweetLisa:",
+		Default: "sweetlisa.tuta.cc",
+	}, &sweetLisaHost, survey.WithValidator(hostValidator)); err != nil {
 		return nil, false, err
 	}
-
+	if err := survey.AskOne(&survey.Input{
+		Message: "Server Ticket:",
+		Help:    "You can get the ticket by @SweetLisa_bot. Send \"/sweetlisa\" to your anonymous channel.",
+	}, &ticket, survey.WithValidator(minLengthValidatorFactory(15))); err != nil {
+		return nil, false, err
+	}
 	randPort := strconv.Itoa(1024 + fastrand.Intn(30000))
 	if proto == string(protocol.ProtocolVMessTlsGrpc) {
 		randPort = "50051"
 	}
-	prompt = &promptui.Prompt{
-		Label:     "Address to listen on",
-		Default:   "0.0.0.0:" + randPort,
-		AllowEdit: true,
-		Validate:  addressValidator,
-	}
-	listen, err := prompt.Run()
-	if err != nil {
+	if err := survey.AskOne(&survey.Input{
+		Message: "Address to listen on:",
+		Default: "0.0.0.0:" + randPort,
+		Help: "The local address you want to listen. Protocols contain \"tls\" will occupy more one port 80. " +
+			"Make sure the ports are available.",
+	}, &listen, survey.WithValidator(addressValidator)); err != nil {
 		return nil, false, err
 	}
 	_, listenPort, err := net.SplitHostPort(listen)
 	if err != nil {
 		return nil, false, err
 	}
-	var hostname string
 	resp, err := http.Get("https://api.cloudflare.com/cdn-cgi/trace")
 	if err == nil {
 		if resp.StatusCode == 200 {
@@ -229,37 +227,36 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 			_ = resp.Body.Close()
 		}
 	}
-	prompt = &promptui.Prompt{
-		Label:    "Server hostname for users to connect (split by \",\")",
-		Default:  hostname,
-		Validate: hostsValidator,
-	}
-	hostname, err = prompt.Run()
-	if err != nil {
+	if err := survey.AskOne(&survey.Input{
+		Message: "Server hostname for users to connect (split by \",\"):",
+		Default: hostname,
+		Help: "It could be domain, IPv4 or IPv6. You may have multiple hostnames for users to connects; " +
+			"join them by \",\" like \"example.com,1.1.1.1,2001:470e::483\". " +
+			"The first hostname is for SweetLisa to connect, verify and check health.",
+	}, &hostname, survey.WithValidator(hostsValidator)); err != nil {
 		return nil, false, err
 	}
-
-	prompt = &promptui.Prompt{
-		Label:     "Server port for users to connect",
-		Default:   listenPort,
-		Validate:  portValidator,
-		AllowEdit: true,
-	}
-	strPort, err := prompt.Run()
-	if err != nil {
+	if err := survey.AskOne(&survey.Input{
+		Message: "Server port for users to connect:",
+		Default: listenPort,
+		Help: "The port for users to connect. It can be different from the listened port and this feature is useful " +
+			"for machines behind NAT.",
+	}, &strPort, survey.WithValidator(portValidator)); err != nil {
 		return nil, false, err
 	}
 	port, _ := strconv.Atoi(strPort)
-
-	prompt = &promptui.Prompt{
-		Label:    "Server name to register",
-		Validate: minLengthValidatorFactory(5),
-	}
-	name, err := prompt.Run()
-	if err != nil {
+	if err := survey.AskOne(&survey.Input{
+		Message: "Server name to register:",
+		Help:    "This name is showed in the subscription as the server name.",
+	}, &name, survey.WithValidator(minLengthValidatorFactory(5))); err != nil {
 		return nil, false, err
 	}
 	var (
+		needRelay bool
+		strDay    string
+		strLimit  string
+
+		noRelay              bool
 		enableBandwidthLimit bool
 		resetDay             uint8
 		uplinkLimitGiB       int64
@@ -267,43 +264,37 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		totalLimitGiB        int64
 	)
 
-	var noRelay bool
-	prompt = &promptui.Prompt{
-		Label:     "This machine doesn't need relays? [n (no relays) / Y (need relays)]",
-		IsConfirm: true,
-		Default:   "y",
+	if err := survey.AskOne(&survey.Confirm{
+		Message: "This machine doesn't need relays? [n (no relays) / Y (need relays)]",
+		Default: true,
+		Help:    "This option is only valid for endpoint machine.",
+	}, &needRelay); err != nil {
+		return nil, false, err
 	}
-	_, err = prompt.Run()
-	if err != nil {
-		noRelay = true
+	noRelay = !needRelay
+	if err := survey.AskOne(&survey.Confirm{
+		Message: "Do you want to set traffic limit?",
+		Default: false,
+		Help: "If yes, SweetLisa will show the remaining quota in the server name and disconnect the machine when " +
+			"the quota is exhausted.",
+	}, &enableBandwidthLimit); err != nil {
+		return nil, false, err
 	}
-
-	prompt = &promptui.Prompt{
-		Label:     "Do you want to set bandwidth limit",
-		IsConfirm: true,
-	}
-	_, err = prompt.Run()
-	if err == nil {
-		enableBandwidthLimit = true
-
-		prompt = &promptui.Prompt{
-			Label:    "The day of every month to reset the limit of bandwidth",
-			Default:  "1",
-			Validate: dayValidator,
-		}
-		strDay, err := prompt.Run()
-		if err != nil {
+	if enableBandwidthLimit {
+		if err := survey.AskOne(&survey.Input{
+			Message: "The day of every month to reset the limit of traffic:",
+			Default: "1",
+			Help:    "For example, if it is set 5, the quota will be reset on the 5th of every month.",
+		}, &strDay, survey.WithValidator(dayValidator)); err != nil {
 			return nil, false, err
 		}
 		resetDay = common.ShouldParseUint8(strDay)
-		prompt = &promptui.Prompt{
-			Label:     "UplinkLimitGiB/DownlinkLimitGiB/TotalLimitGiB (example: 980/0/0, zero means no limit)",
-			Default:   "0/0/0",
-			AllowEdit: true,
-			Validate:  limitValidator,
-		}
-		strLimit, err := prompt.Run()
-		if err != nil {
+		if err := survey.AskOne(&survey.Input{
+			Message: "UplinkLimitGiB/DownlinkLimitGiB/TotalLimitGiB (example: 980/0/0, zero means no limit):",
+			Default: "0/0/0",
+			Help: "UplinkLimit, DownlinkLimit and TotalLimit can be set respectively. Any of them is exhausted will " +
+				"trigger the traffic protection.",
+		}, &strLimit, survey.WithValidator(limitValidator)); err != nil {
 			return nil, false, err
 		}
 		fields := strings.Split(strLimit, "/")
@@ -344,7 +335,7 @@ func writeFiles(f embed.FS, configFilePath string, params *config.Params, servic
 	var runningArgs []string
 	if params != nil {
 		// write config
-		b, err := jsoniter.Marshal(params)
+		b, err := json.MarshalIndent(params, "", "\t")
 		if err != nil {
 			return err
 		}
