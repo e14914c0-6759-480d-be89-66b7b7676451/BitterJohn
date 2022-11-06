@@ -12,10 +12,21 @@ sudo systemctl enable --now BitterJohn
 
 ### upgrade
 
+**After v1.2.6**
+
+```bash
+sudo BitterJohn update
+sudo systemctl restart BitterJohn.service
+```
+
+Warn: this method will not update the systemd service file.
+
+**Before v1.2.5**
+
 ```bash
 sudo ./BitterJohn install
 sudo systemctl daemon-reload
-sudo systemctl restart BitterJohn
+sudo systemctl restart BitterJohn.service
 ```
 
 ## Troubleshot
