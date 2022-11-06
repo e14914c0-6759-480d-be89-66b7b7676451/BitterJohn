@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"embed"
 	"github.com/spf13/cobra"
 )
 
 var (
+	F embed.FS
+
 	cfgFile string
 	Version = "unknown"
 
@@ -24,5 +27,6 @@ func Execute() error {
 
 func init() {
 	rootCmd.AddCommand(installCmd)
+	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(runCmd)
 }

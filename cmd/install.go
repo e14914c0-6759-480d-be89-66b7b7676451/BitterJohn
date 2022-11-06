@@ -27,7 +27,6 @@ import (
 )
 
 var (
-	F          embed.FS
 	installCmd = &cobra.Command{
 		Use:   "install",
 		Short: "Install BitterJohn as a systemd service",
@@ -425,5 +424,5 @@ func Install(f embed.FS, forUser bool, genConfig bool) {
 	}
 
 	log.Info("Installed successfully!")
-	log.Info("Run: systemctl enable " + strings.Join(serviceArgs, " ") + " BitterJohn")
+	log.Info("Run: systemctl enable " + strings.Join(serviceArgs, " ") + " BitterJohn.service")
 }
