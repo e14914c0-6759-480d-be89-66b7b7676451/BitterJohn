@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 )
@@ -156,6 +157,63 @@ func addressValidator(ans interface{}) error {
 	return portValidator(port)
 }
 
+func getIP(client *http.Client) (ip string) {
+	resp, err := client.Get("https://api.cloudflare.com/cdn-cgi/trace")
+	if err == nil {
+		if resp.StatusCode == 200 {
+			scanner := bufio.NewScanner(resp.Body)
+			for scanner.Scan() {
+				if strings.HasPrefix(scanner.Text(), "ip=") {
+					ip = strings.TrimPrefix(scanner.Text(), "ip=")
+					break
+				}
+			}
+			_ = resp.Body.Close()
+		}
+	}
+	return ip
+}
+
+func getDefaultHostnames() (hostnames string) {
+	var (
+		timeout          = 5 * time.Second
+		netDefaultDialer net.Dialer
+		c4               = http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return netDefaultDialer.DialContext(ctx, "tcp4", addr)
+				},
+			},
+			Timeout: timeout,
+		}
+		c6 = http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return netDefaultDialer.DialContext(ctx, "tcp6", addr)
+				},
+			},
+			Timeout: timeout,
+		}
+		ips []string
+		wg  sync.WaitGroup
+	)
+	wg.Add(2)
+	go func() {
+		if ip := getIP(&c4); len(ip) != 0 {
+			ips = append(ips, ip)
+		}
+		wg.Done()
+	}()
+	go func() {
+		if ip := getIP(&c6); len(ip) != 0 {
+			ips = append(ips, ip)
+		}
+		wg.Done()
+	}()
+	wg.Wait()
+	return strings.Join(common.Deduplicate(ips), ",")
+}
+
 func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if _, err := os.Stat(targetConfigPath); err != nil && !os.IsNotExist(err) {
 		return nil, false, err
@@ -213,22 +271,9 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	resp, err := http.Get("https://api.cloudflare.com/cdn-cgi/trace")
-	if err == nil {
-		if resp.StatusCode == 200 {
-			scanner := bufio.NewScanner(resp.Body)
-			for scanner.Scan() {
-				if strings.HasPrefix(scanner.Text(), "ip=") {
-					hostname = strings.TrimPrefix(scanner.Text(), "ip=")
-					break
-				}
-			}
-			_ = resp.Body.Close()
-		}
-	}
 	if err := survey.AskOne(&survey.Input{
 		Message: "Server hostname for users to connect (split by \",\"):",
-		Default: hostname,
+		Default: getDefaultHostnames(),
 		Help: "It could be domain, IPv4 or IPv6. You may have multiple hostnames for users to connects; " +
 			"join them by \",\" like \"example.com,1.1.1.1,2001:470e::483\". " +
 			"The first hostname is for SweetLisa to connect, verify and check health.",
