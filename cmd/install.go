@@ -194,24 +194,20 @@ func getDefaultHostnames() (hostnames string) {
 			},
 			Timeout: timeout,
 		}
-		ips []string
+		ips [2]string
 		wg  sync.WaitGroup
 	)
 	wg.Add(2)
 	go func() {
-		if ip := getIP(&c4); len(ip) != 0 {
-			ips = append(ips, ip)
-		}
+		ips[0] = getIP(&c4)
 		wg.Done()
 	}()
 	go func() {
-		if ip := getIP(&c6); len(ip) != 0 {
-			ips = append(ips, ip)
-		}
+		ips[1] = getIP(&c6)
 		wg.Done()
 	}()
 	wg.Wait()
-	return strings.Join(common.Deduplicate(ips), ",")
+	return strings.Join(common.Deduplicate(common.RemoveEmpty(ips[:])), ",")
 }
 
 func getParams(targetConfigPath string) (*config.Params, bool, error) {

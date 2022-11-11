@@ -120,6 +120,17 @@ func Deduplicate(list []string) []string {
 	return res
 }
 
+func RemoveEmpty(list []string) []string {
+	j := 0
+	for i := 0; i < len(list); i++ {
+		if list[i] != "" {
+			list[j] = list[i]
+			j++
+		}
+	}
+	return list[:j]
+}
+
 func HomeExpand(path string) (string, error) {
 	if !strings.HasPrefix(path, "~") {
 		return path, nil
