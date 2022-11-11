@@ -108,6 +108,10 @@ func NewJohnTlsGrpc(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost
 	return john, nil
 }
 
+func (s *Server) reRegister() {
+	s.lastAlive = time.Time{}
+}
+
 func (s *Server) Listen(addr string) (err error) {
 	lt, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -152,7 +156,24 @@ func (s *Server) Listen(addr string) (err error) {
 			}
 		}()
 		s.grpc = grpc2.Server{
-			Server:     grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: m.GetCertificate, NextProtos: []string{"h2"}}))),
+			Server: grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				isChallenge := false
+				defer func() {
+					if isChallenge {
+						log.Warn("The certificate for %v is renewed successfully.", sni)
+						// Actively request an attempt to re-register
+						s.reRegister()
+					}
+				}()
+				// If there is any cache, it couldn't be more than 5 seconds to retrieve a cert.
+				t := time.AfterFunc(5*time.Second, func() {
+					isChallenge = true
+					log.Warn("We are now renewing the certificate for %v.", sni)
+				})
+				defer t.Stop()
+
+				return m.GetCertificate(info)
+			}, NextProtos: []string{"h2"}}))),
 			LocalAddr:  lt.Addr(),
 			HandleConn: s.handleConn,
 		}
@@ -307,7 +328,11 @@ func (s *Server) registerBackground() {
 			if time.Since(s.lastAlive) < server.LostThreshold {
 				continue
 			} else {
-				log.Warn("Lost connection with SweetLisa more than 5 minutes. Try to register again")
+				if s.lastAlive.IsZero() {
+					log.Warn("Actively request an attempt to re-register")
+				} else {
+					log.Warn("Lost connection with SweetLisa more than 5 minutes. Try to register again")
+				}
 			}
 			if err := s.register(); err != nil {
 				// binary exponential backoff algorithm
