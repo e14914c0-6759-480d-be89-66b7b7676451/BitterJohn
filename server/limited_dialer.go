@@ -4,27 +4,47 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/net/dns/dnsmessage"
 	"golang.org/x/net/proxy"
 	"io"
 	"net"
 	"net/netip"
+	"strings"
 	"syscall"
+)
+
+type ForceNetworkType int
+
+const (
+	Force4 ForceNetworkType = iota
+	Force6
+	KeepOrigin
 )
 
 var ErrDialPrivateAddress = fmt.Errorf("request to dial a private address")
 
-var SymmetricPrivateLimitedDialer = NewLimitedDialer(false)
-var FullconePrivateLimitedDialer = NewLimitedDialer(true)
+var SymmetricPrivateLimitedDialer proxy.Dialer
+var FullconePrivateLimitedDialer proxy.Dialer
+
+func InitLimitedDialer() {
+	forceNetwork := KeepOrigin
+	if config.ParamsObj.John.Only4 {
+		forceNetwork = Force4
+	}
+	SymmetricPrivateLimitedDialer = NewLimitedDialer(false, forceNetwork)
+	FullconePrivateLimitedDialer = NewLimitedDialer(true, forceNetwork)
+}
 
 type PrivateLimitedDialer struct {
 	proxy.Dialer
-	netDialer net.Dialer
-	fullCone  bool
+	netDialer    net.Dialer
+	fullCone     bool
+	forceNetwork ForceNetworkType
 }
 
-func NewLimitedDialer(fullCone bool) *PrivateLimitedDialer {
+func NewLimitedDialer(fullCone bool, forceNetwork ForceNetworkType) *PrivateLimitedDialer {
 	return &PrivateLimitedDialer{
 		netDialer: net.Dialer{
 			Control: func(network, address string, c syscall.RawConn) error {
@@ -43,15 +63,30 @@ func NewLimitedDialer(fullCone bool) *PrivateLimitedDialer {
 				return nil
 			},
 		},
-		fullCone: fullCone,
+		fullCone:     fullCone,
+		forceNetwork: forceNetwork,
 	}
 }
 
 func (d *PrivateLimitedDialer) Dial(network, addr string) (c net.Conn, err error) {
-	switch network {
-	case "tcp":
+	switch {
+	case strings.HasPrefix(network, "tcp"):
+		switch d.forceNetwork {
+		case Force4:
+			network = "tcp4"
+		case Force6:
+			network = "tcp6"
+		default:
+		}
 		return d.netDialer.Dial(network, addr)
-	case "udp":
+	case strings.HasPrefix(network, "udp"):
+		switch d.forceNetwork {
+		case Force4:
+			network = "udp4"
+		case Force6:
+			network = "udp6"
+		default:
+		}
 		if d.fullCone {
 			conn, err := net.ListenUDP(network, nil)
 			if err != nil {

@@ -21,6 +21,7 @@ type John struct {
 	MaxDrainN int64 `json:"maxDrainN" default:"-1" desc:"Max number of bytes to drain. default value is -1, which means unlimited."`
 
 	DoNotValidateCDN bool `json:"doNotValidateCDN" desc:"Do not validate the CDN configuration of the peer SweetLisa"`
+	Only4            bool `json:"only4" desc:"Only use IPv4 for outbound traffic"`
 }
 
 type BandwidthLimit struct {
@@ -45,13 +46,3 @@ type Params struct {
 }
 
 var ParamsObj Params
-
-func GetTlsCertPath() (crt, key string, err error) {
-	if crt, err = DataFile("cert.pem"); err != nil {
-		return "", "", err
-	}
-	if key, err = DataFile("cert.key"); err != nil {
-		return "", "", err
-	}
-	return "", "", nil
-}

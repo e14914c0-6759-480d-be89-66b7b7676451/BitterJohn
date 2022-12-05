@@ -65,6 +65,9 @@ func init() {
 
 func Run() (err error) {
 	initConfig()
+
+	server.InitLimitedDialer()
+
 	shadowsocks.DefaultIodizedSource = "https://autumn-cell-a7f2.tuta.cc/explore"
 
 	var done = make(chan error)

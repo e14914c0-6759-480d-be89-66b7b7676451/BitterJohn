@@ -14,14 +14,14 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mzz2017/disk-bloom v1.0.1
-	github.com/mzz2017/softwind v0.0.0-20220620134411-41b185cb79f5
+	github.com/mzz2017/softwind v0.0.0-20221204151826-2987e0b05820
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0
 	github.com/v2rayA/beego/v2 v2.0.4
 	github.com/yl2chen/cidranger v1.0.2
-	golang.org/x/crypto v0.0.0-20220210151621-f4118a5b28e2
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
-	google.golang.org/grpc v1.46.0
+	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be
+	golang.org/x/net v0.0.0-20220926192436-02166a98028e
+	google.golang.org/grpc v1.49.0
 
 )
 
@@ -64,7 +64,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/ugorji/go/codec v1.1.7 // indirect
-	golang.org/x/sys v0.0.0-20220422013727-9388b58f7150 // indirect
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
