@@ -22,6 +22,7 @@ import (
 	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"net"
 	"net/http"
 	"strconv"
@@ -156,24 +157,34 @@ func (s *Server) Listen(addr string) (err error) {
 			}
 		}()
 		s.grpc = grpc2.Server{
-			Server: grpc.NewServer(grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				isChallenge := false
-				defer func() {
-					if isChallenge {
-						log.Warn("The certificate for %v is renewed successfully.", sni)
-						// Actively request an attempt to re-register
-						s.reRegister()
-					}
-				}()
-				// If there is any cache, it couldn't be more than 5 seconds to retrieve a cert.
-				t := time.AfterFunc(5*time.Second, func() {
-					isChallenge = true
-					log.Warn("We are now renewing the certificate for %v.", sni)
-				})
-				defer t.Stop()
+			Server: grpc.NewServer(
+				grpc.Creds(credentials.NewTLS(&tls.Config{GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					isChallenge := false
+					defer func() {
+						if isChallenge {
+							log.Warn("The certificate for %v is renewed successfully.", sni)
+							// Actively request an attempt to re-register
+							s.reRegister()
+						}
+					}()
+					// If there is any cache, it couldn't be more than 5 seconds to retrieve a cert.
+					t := time.AfterFunc(5*time.Second, func() {
+						isChallenge = true
+						log.Warn("We are now renewing the certificate for %v.", sni)
+					})
+					defer t.Stop()
 
-				return m.GetCertificate(info)
-			}, NextProtos: []string{"h2"}}))),
+					return m.GetCertificate(info)
+				}, NextProtos: []string{"h2"}})),
+				grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+					MinTime:             30 * time.Second,
+					PermitWithoutStream: true,
+				}),
+				grpc.KeepaliveParams(keepalive.ServerParameters{
+					Time:    60 * time.Second,
+					Timeout: 10 * time.Second,
+				}),
+			),
 			LocalAddr:  lt.Addr(),
 			HandleConn: s.handleConn,
 		}
