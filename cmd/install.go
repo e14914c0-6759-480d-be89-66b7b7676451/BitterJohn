@@ -330,7 +330,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 		}
 		resetDay = common.ShouldParseUint8(strDay)
 		if err := survey.AskOne(&survey.Input{
-			Message: "UplinkLimitGiB/DownlinkLimitGiB/TotalLimitGiB (example: 980/0/0, zero means no limit):",
+			Message: "UplinkLimitGB/DownlinkLimitGB/TotalLimitGB (example: 980/0/0, zero means no limit):",
 			Default: "0/0/0",
 			Help: "UplinkLimit, DownlinkLimit and TotalLimit can be set respectively. Any of them is exhausted will " +
 				"trigger the traffic protection.",
