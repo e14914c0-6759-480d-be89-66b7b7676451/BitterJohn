@@ -56,8 +56,6 @@ github.com/Masterminds/sprig v2.22.0+incompatible/go.mod h1:y6hNFY5UBTIWBxnzTeuN
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2 h1:+vx7roKuyA63nhn5WAunQHLTznkw5W8b1Xc0dNjp83s=
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2/go.mod h1:HBCaDeC1lPdgDeDbhX8XFpy1jqjK0IBG8W5K+xYqA0w=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/Qv2ray/gun v0.0.0-20210314140700-95a65981f2f8 h1:vXZO6gMcQwOcFR8cF/brd/F6vP5pk5fAI7Az6avsbFw=
-github.com/Qv2ray/gun v0.0.0-20210314140700-95a65981f2f8/go.mod h1:BxLCVtH80Ox0wPYPeX1BjEXQGUI2cTONpACpac6Ri98=
 github.com/adrg/xdg v0.4.0 h1:RzRqFcjH4nE5C6oTAxhBtoE2IRyjBSa62SCbyPidvls=
 github.com/adrg/xdg v0.4.0/go.mod h1:N6ag73EX4wyxeaoeHctc1mas01KZgsj5tYiAIwqJE/E=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
@@ -307,8 +305,8 @@ github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9G
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/mzz2017/disk-bloom v1.0.1 h1:rEF9MiXd9qMW3ibRpqcerLXULoTgRlM21yqqJl1B90M=
 github.com/mzz2017/disk-bloom v1.0.1/go.mod h1:JLHETtUu44Z6iBmsqzkOtFlRvXSlKnxjwiBRDapizDI=
-github.com/mzz2017/softwind v0.0.0-20221204151826-2987e0b05820 h1:kFOj4IouU0Ksdtc/cMnMTdqytDG3HlIRjM4lhLDa530=
-github.com/mzz2017/softwind v0.0.0-20221204151826-2987e0b05820/go.mod h1:K1nXwtBokwEsfOfdT/5zV6R8QabGkyhcR0iuTrRZcYY=
+github.com/mzz2017/softwind v0.0.0-20230209162720-f6e9c7790fb1 h1:91iNjZEiaDIDedusC5Five6KbEbt2ItwvFE/DylPMWo=
+github.com/mzz2017/softwind v0.0.0-20230209162720-f6e9c7790fb1/go.mod h1:K1nXwtBokwEsfOfdT/5zV6R8QabGkyhcR0iuTrRZcYY=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/olekukonko/tablewriter v0.0.5/go.mod h1:hPp6KlRPjbx+hW8ykQs1w3UBbZlj6HuIJcUGPhkA7kY=

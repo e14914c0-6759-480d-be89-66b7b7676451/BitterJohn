@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.6
 	github.com/Masterminds/sprig v2.22.0+incompatible
-	github.com/Qv2ray/gun v0.0.0-20210314140700-95a65981f2f8
 	github.com/adrg/xdg v0.4.0
 	github.com/cloudflare/cloudflare-go v0.26.0
 	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20220604073428-3c79bd46087c
@@ -14,7 +13,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mzz2017/disk-bloom v1.0.1
-	github.com/mzz2017/softwind v0.0.0-20221204151826-2987e0b05820
+	github.com/mzz2017/softwind v0.0.0-20230209162720-f6e9c7790fb1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0
 	github.com/v2rayA/beego/v2 v2.0.4

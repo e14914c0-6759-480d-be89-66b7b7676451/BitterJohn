@@ -10,13 +10,13 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	gonanoid "github.com/matoous/go-nanoid"
 	disk_bloom "github.com/mzz2017/disk-bloom"
+	"github.com/mzz2017/softwind/pool"
+	"github.com/mzz2017/softwind/protocol"
+	"github.com/mzz2017/softwind/protocol/shadowsocks"
 	"golang.org/x/net/proxy"
 	"net"
 	"strconv"
@@ -26,6 +26,7 @@ import (
 
 func init() {
 	server.Register("shadowsocks", NewJohn)
+	shadowsocks.DefaultSaltGeneratorType = shadowsocks.IodizedSaltGeneratorType
 }
 
 type Server struct {
@@ -50,7 +51,7 @@ type Server struct {
 
 type Passage struct {
 	server.Passage
-	inMasterKey  []byte
+	inMasterKey []byte
 }
 
 func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
