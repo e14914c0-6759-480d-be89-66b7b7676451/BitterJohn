@@ -13,7 +13,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/matoous/go-nanoid v1.5.0
 	github.com/mzz2017/disk-bloom v1.0.1
-	github.com/mzz2017/softwind v0.0.0-20230210023945-506610874f4c
+	github.com/mzz2017/softwind v0.0.0-20230213052644-4858e2c1e1d9
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0
 	github.com/v2rayA/beego/v2 v2.0.4

@@ -81,6 +81,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 			Cipher:          passage.Out.Method,
 			Password:        passage.Out.Password,
 			IsClient:        true,
+			ShouldFullCone:  true,
 		})
 		if err != nil {
 			return err

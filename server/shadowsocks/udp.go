@@ -97,6 +97,7 @@ func (s *Server) GetOrBuildUDPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 				Cipher:          passage.Out.Method,
 				Password:        passage.Out.Password,
 				IsClient:        true,
+				ShouldFullCone:  true,
 			})
 			if err != nil {
 				return nil, nil, nil, "", err
@@ -195,7 +196,11 @@ func (s *Server) relay(laddr net.Addr, rConn net.PacketConn, timeout time.Durati
 				},
 			}
 
-			b := target.BytesFromPool()
+			b, err := target.BytesFromPool()
+			if err != nil {
+				log.Warn("relay: target.BytesFromPool: %v", err)
+				return err
+			}
 			copy(buf[len(b):], buf[:n])
 			copy(buf, b)
 			n += len(b)
