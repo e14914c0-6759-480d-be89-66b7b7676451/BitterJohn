@@ -41,6 +41,8 @@ jobs:
           go-version: ^1.18
       - name: Build BitterJohn Binaries
         run: |
+          go mod download
+          go mod verify
           for osarch in linux/386 linux/amd64 linux/arm linux/arm64; do
             export GOOS=$(echo $osarch | cut -d/ -f1)
             export GOARCH=$(echo $osarch | cut -d/ -f2)
