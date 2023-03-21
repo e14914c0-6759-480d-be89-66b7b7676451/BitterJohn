@@ -14,10 +14,12 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	gonanoid "github.com/matoous/go-nanoid"
 	disk_bloom "github.com/mzz2017/disk-bloom"
+	"github.com/mzz2017/softwind/ciphers"
+	common2 "github.com/mzz2017/softwind/common"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/shadowsocks"
-	"golang.org/x/net/proxy"
 	"net"
 	"strconv"
 	"sync"
@@ -46,7 +48,7 @@ type Server struct {
 	passageContentionCache *server.ContentionCache
 
 	bloom  *disk_bloom.FilterGroup
-	dialer proxy.Dialer
+	dialer netproxy.Dialer
 }
 
 type Passage struct {
@@ -54,7 +56,7 @@ type Passage struct {
 	inMasterKey []byte
 }
 
-func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
+func New(valueCtx context.Context, dialer netproxy.Dialer) (server.Server, error) {
 	bloom := valueCtx.Value("bloom").(*disk_bloom.FilterGroup)
 	s := &Server{
 		userContextPool: (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
@@ -66,7 +68,7 @@ func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
 	return s, nil
 }
 
-func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisa config.Lisa, arg server.Argument) (server.Server, error) {
+func NewJohn(valueCtx context.Context, dialer netproxy.Dialer, sweetLisa config.Lisa, arg server.Argument) (server.Server, error) {
 	s, err := New(valueCtx, dialer)
 	if err != nil {
 		return nil, err
@@ -277,7 +279,7 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 		if psgs[i].In.Method == "" {
 			psgs[i].In.Method = "chacha20-ietf-poly1305"
 		}
-		psgs[i].inMasterKey = shadowsocks.EVPBytesToKey(psg.In.Password, shadowsocks.CiphersConf[psg.In.Method].KeyLen)
+		psgs[i].inMasterKey = common2.EVPBytesToKey(psg.In.Password, ciphers.AeadCiphersConf[psg.In.Method].KeyLen)
 	}
 	return psgs, manager
 }

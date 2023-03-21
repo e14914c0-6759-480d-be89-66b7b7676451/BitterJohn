@@ -14,12 +14,12 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"github.com/google/uuid"
+	"github.com/mzz2017/softwind/netproxy"
 	proto "github.com/mzz2017/softwind/pkg/gun_proto"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/vmess"
 	grpc2 "github.com/mzz2017/softwind/transport/grpc"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -52,7 +52,7 @@ type Server struct {
 	startTimestamp int64
 
 	doubleCuckoo *vmess.ReplayFilter
-	dialer       proxy.Dialer
+	dialer       netproxy.Dialer
 
 	// grpc
 	grpc grpc2.Server
@@ -60,7 +60,7 @@ type Server struct {
 	autocertServer *http.Server
 }
 
-func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
+func New(valueCtx context.Context, dialer netproxy.Dialer) (server.Server, error) {
 	doubleCuckoo := valueCtx.Value("doubleCuckoo").(*vmess.ReplayFilter)
 	s := &Server{
 		doubleCuckoo:    doubleCuckoo,
@@ -71,7 +71,7 @@ func New(valueCtx context.Context, dialer proxy.Dialer) (server.Server, error) {
 	return s, nil
 }
 
-func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument, protocol protocol.Protocol) (server.Server, error) {
+func NewJohn(valueCtx context.Context, dialer netproxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument, protocol protocol.Protocol) (server.Server, error) {
 	s, err := New(valueCtx, dialer)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func NewJohn(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config
 	return john, nil
 }
 
-func NewJohnTCP(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+func NewJohnTCP(valueCtx context.Context, dialer netproxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
 	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, protocol.ProtocolVMessTCP)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func NewJohnTCP(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost con
 	return john, nil
 }
 
-func NewJohnTlsGrpc(valueCtx context.Context, dialer proxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
+func NewJohnTlsGrpc(valueCtx context.Context, dialer netproxy.Dialer, sweetLisaHost config.Lisa, arg server.Argument) (server.Server, error) {
 	john, err := NewJohn(valueCtx, dialer, sweetLisaHost, arg, protocol.ProtocolVMessTlsGrpc)
 	if err != nil {
 		return nil, err

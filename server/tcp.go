@@ -1,8 +1,8 @@
 package server
 
 import (
+	"github.com/mzz2017/softwind/netproxy"
 	io2 "github.com/mzz2017/softwind/pkg/zeroalloc/io"
-	"net"
 	"time"
 )
 
@@ -10,7 +10,7 @@ type WriteCloser interface {
 	CloseWrite() error
 }
 
-func RelayTCP(lConn, rConn net.Conn) (err error) {
+func RelayTCP(lConn, rConn netproxy.Conn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
 		_, e := io2.Copy(rConn, lConn)

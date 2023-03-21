@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/mzz2017/softwind/netproxy"
 	"net"
 	"time"
 
@@ -47,7 +48,7 @@ func RelayUDP(dst *net.UDPConn, laddr net.Addr, src net.PacketConn, timeout time
 	}
 }
 
-func RelayUDPToConn(dst net.Conn, src net.PacketConn, timeout time.Duration) (err error) {
+func RelayUDPToConn(dst netproxy.Conn, src net.PacketConn, timeout time.Duration) (err error) {
 	var n int
 	var addr net.Addr
 	var mtu int

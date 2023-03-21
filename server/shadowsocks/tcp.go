@@ -8,12 +8,13 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/mzz2017/softwind/ciphers"
+	"github.com/mzz2017/softwind/pool"
+	"github.com/mzz2017/softwind/protocol"
+	"github.com/mzz2017/softwind/protocol/shadowsocks"
 	"io"
 	"net"
 	"strconv"
@@ -193,7 +194,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 		return nil, protocol.ErrFailAuth
 	}
 	// check bloom
-	if exist := s.bloom.Exist(data[:shadowsocks.CiphersConf[passage.In.Method].SaltLen]); exist {
+	if exist := s.bloom.Exist(data[:ciphers.AeadCiphersConf[passage.In.Method].SaltLen]); exist {
 		return nil, protocol.ErrReplayAttack
 	}
 	return passage, nil
@@ -201,7 +202,7 @@ func (s *Server) authTCP(conn bufferred_conn.BufferedConn) (passage *Passage, er
 
 func (s *Server) probeTCP(buf []byte, data []byte, passage *Passage) ([]byte, bool) {
 	//[salt][encrypted payload length][length tag][encrypted payload][payload tag]
-	conf := shadowsocks.CiphersConf[passage.In.Method]
+	conf := ciphers.AeadCiphersConf[passage.In.Method]
 
 	salt := data[:conf.SaltLen]
 	cipherText := data[conf.SaltLen : conf.SaltLen+2+conf.TagLen]

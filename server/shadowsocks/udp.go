@@ -6,6 +6,7 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/mzz2017/softwind/ciphers"
 	"github.com/mzz2017/softwind/pool"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/shadowsocks"
@@ -97,7 +98,7 @@ func (s *Server) GetOrBuildUDPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 				Cipher:          passage.Out.Method,
 				Password:        passage.Out.Password,
 				IsClient:        true,
-				ShouldFullCone:  true,
+				Flags:           0,
 			})
 			if err != nil {
 				return nil, nil, nil, "", err
@@ -157,7 +158,7 @@ func (s *Server) relay(laddr net.Addr, rConn net.PacketConn, timeout time.Durati
 	defer pool.Put(buf)
 	var inKey shadowsocks.Key
 	inKey = shadowsocks.Key{
-		CipherConf: shadowsocks.CiphersConf[passage.In.Method],
+		CipherConf: ciphers.AeadCiphersConf[passage.In.Method],
 		MasterKey:  passage.inMasterKey,
 	}
 	var (
@@ -240,7 +241,7 @@ func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (pas
 		return nil, nil, protocol.ErrFailAuth
 	}
 	// check bloom
-	if exist := s.bloom.ExistOrAdd(data[:shadowsocks.CiphersConf[passage.In.Method].SaltLen]); exist {
+	if exist := s.bloom.ExistOrAdd(data[:ciphers.AeadCiphersConf[passage.In.Method].SaltLen]); exist {
 		return nil, nil, protocol.ErrReplayAttack
 	}
 	return passage, content, nil
@@ -248,7 +249,7 @@ func (s *Server) authUDP(buf []byte, data []byte, userContext *UserContext) (pas
 
 func probeUDP(buf []byte, data []byte, server *Passage) (content []byte, ok bool) {
 	//[salt][encrypted payload][tag]
-	conf := shadowsocks.CiphersConf[server.In.Method]
+	conf := ciphers.AeadCiphersConf[server.In.Method]
 	if len(data) < conf.SaltLen+conf.TagLen {
 		return nil, false
 	}
@@ -257,5 +258,6 @@ func probeUDP(buf []byte, data []byte, server *Passage) (content []byte, ok bool
 
 	subKey := pool.Get(conf.KeyLen)[:0]
 	defer pool.Put(subKey)
-	return conf.Verify(buf, server.inMasterKey, salt, cipherText, &subKey)
+	b := subKey.Bytes()
+	return conf.Verify(buf, server.inMasterKey, salt, cipherText, &b)
 }

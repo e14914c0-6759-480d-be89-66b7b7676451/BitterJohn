@@ -13,13 +13,13 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/resolver"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/mzz2017/softwind/netproxy"
 	"github.com/mzz2017/softwind/pkg/fastrand"
 	"github.com/mzz2017/softwind/protocol"
 	"github.com/mzz2017/softwind/protocol/shadowsocks"
 	"github.com/mzz2017/softwind/protocol/vmess"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/net/proxy"
 	"net"
 	"os"
 	"path/filepath"
@@ -76,7 +76,7 @@ func Run() (err error) {
 
 	var (
 		ctx    context.Context
-		dialer proxy.Dialer
+		dialer netproxy.Dialer
 	)
 	if !protocol.Protocol(conf.John.Protocol).Valid() {
 		return fmt.Errorf("protocol %v is invalid", strconv.Quote(conf.John.Protocol))

@@ -6,7 +6,7 @@ import (
 )
 
 type BufferedConn struct {
-	r        *bufio.Reader
+	r             *bufio.Reader
 	net.Conn // So that most methods are embedded
 }
 
