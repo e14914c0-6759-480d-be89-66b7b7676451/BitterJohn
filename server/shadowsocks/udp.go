@@ -98,7 +98,7 @@ func (s *Server) GetOrBuildUDPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 				Cipher:          passage.Out.Method,
 				Password:        passage.Out.Password,
 				IsClient:        true,
-				Flags:           0,
+				Flags:           protocol.Flags_VMess_UsePacketAddr,
 			})
 			if err != nil {
 				return nil, nil, nil, "", err
