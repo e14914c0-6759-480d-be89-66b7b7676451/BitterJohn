@@ -49,10 +49,10 @@ func RelayUDP(dst *net.UDPConn, laddr net.Addr, src net.PacketConn, timeout time
 	}
 }
 
-func RelayUDPToConn(dst netproxy.FullConn, src netproxy.PacketConn, timeout time.Duration) (err error) {
+func RelayUDPToConn(dst netproxy.FullConn, src netproxy.PacketConn, timeout time.Duration, bufSize int) (err error) {
 	var n int
 	var addr netip.AddrPort
-	buf := pool.Get(65535)
+	buf := pool.Get(bufSize)
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))

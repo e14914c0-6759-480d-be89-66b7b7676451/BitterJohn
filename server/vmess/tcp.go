@@ -278,7 +278,7 @@ func relayUoT(rDialer netproxy.Dialer, lConn *vmess.Conn) (err error) {
 		rConn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		eCh <- e
 	}()
-	e := server.RelayUDPToConn(lConn, rConn, server.DefaultNatTimeout)
+	e := server.RelayUDPToConn(lConn, rConn, server.DefaultNatTimeout, vmess.MaxUDPSize)
 	if lConn, ok := lConn.Conn.(server.WriteCloser); ok {
 		lConn.CloseWrite()
 	}
