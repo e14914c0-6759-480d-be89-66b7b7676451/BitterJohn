@@ -223,7 +223,7 @@ func (s *Server) handleMsg(conn *vmess.Conn, reqMetadata *vmess.Metadata, passag
 	return err
 }
 
-func relayConnToUDP(dst net.PacketConn, src *vmess.Conn, timeout time.Duration) (err error) {
+func relayConnToUDP(dst netproxy.PacketConn, src *vmess.Conn, timeout time.Duration) (err error) {
 	var n int
 	var addr netip.AddrPort
 	buf := pool.Get(vmess.MaxUDPSize)
@@ -235,7 +235,7 @@ func relayConnToUDP(dst net.PacketConn, src *vmess.Conn, timeout time.Duration) 
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-		_, err = dst.WriteTo(buf[:n], net.UDPAddrFromAddrPort(addr))
+		_, err = dst.WriteTo(buf[:n], addr.String())
 		// WARNING: if the dst is an pre-connected conn, Write should be invoked here.
 		if errors.Is(err, net.ErrWriteToConnected) {
 			log.Error("relayConnToUDP: %v", err)
@@ -262,9 +262,9 @@ func relayUoT(rDialer netproxy.Dialer, lConn *vmess.Conn) (err error) {
 		}
 		return err
 	}
-	rConn := conn.(net.PacketConn)
+	rConn := conn.(netproxy.PacketConn)
 	_ = rConn.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-	_, err = rConn.WriteTo(buf[:n], net.UDPAddrFromAddrPort(addr))
+	_, err = rConn.WriteTo(buf[:n], addr.String())
 	if errors.Is(err, net.ErrWriteToConnected) {
 		log.Error("relayConnToUDP: %v", err)
 	}

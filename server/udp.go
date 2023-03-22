@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/mzz2017/softwind/netproxy"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
@@ -48,16 +49,10 @@ func RelayUDP(dst *net.UDPConn, laddr net.Addr, src net.PacketConn, timeout time
 	}
 }
 
-func RelayUDPToConn(dst netproxy.Conn, src net.PacketConn, timeout time.Duration) (err error) {
+func RelayUDPToConn(dst netproxy.FullConn, src netproxy.PacketConn, timeout time.Duration) (err error) {
 	var n int
-	var addr net.Addr
-	var mtu int
-	if src.LocalAddr() != nil {
-		mtu = ip_mtu_trie.MTUTrie.GetMTU(src.LocalAddr().(*net.UDPAddr).IP)
-	} else {
-		mtu = 1500
-	}
-	buf := pool.Get(mtu)
+	var addr netip.AddrPort
+	buf := pool.Get(65535)
 	defer pool.Put(buf)
 	for {
 		_ = src.SetReadDeadline(time.Now().Add(timeout))
@@ -66,9 +61,7 @@ func RelayUDPToConn(dst netproxy.Conn, src net.PacketConn, timeout time.Duration
 			return
 		}
 		_ = dst.SetWriteDeadline(time.Now().Add(DefaultNatTimeout)) // should keep consistent
-		_, err = dst.(interface {
-			WriteTo(p []byte, addr net.Addr) (n int, err error)
-		}).WriteTo(buf[:n], addr)
+		_, err = dst.WriteTo(buf[:n], addr.String())
 		if err != nil {
 			return
 		}
