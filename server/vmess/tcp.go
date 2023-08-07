@@ -5,22 +5,23 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
-	"github.com/mzz2017/softwind/netproxy"
 	"io"
 	"net"
 	"net/netip"
 	"strconv"
 	"time"
 
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
+
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol/vmess"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/vmess"
 )
 
 func (s *Server) handleConn(conn net.Conn) error {
@@ -76,13 +77,13 @@ func (s *Server) handleConn(conn net.Conn) error {
 	if passage.Out != nil {
 		sni, _ := common.HostToSNI(passage.Out.Host, s.sweetLisa.Host)
 		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, protocol.Header{
-			ProxyAddress:    net.JoinHostPort(passage.Out.Host, passage.Out.Port),
-			SNI:             sni,
-			GrpcServiceName: common.SimplyGetParam(passage.Out.Method, "serviceName"),
-			Cipher:          passage.Out.Method,
-			Password:        passage.Out.Password,
-			IsClient:        true,
-			Flags:           protocol.Flags_VMess_UsePacketAddr,
+			ProxyAddress: net.JoinHostPort(passage.Out.Host, passage.Out.Port),
+			SNI:          sni,
+			Feature1:     common.SimplyGetParam(passage.Out.Method, "serviceName"),
+			Cipher:       passage.Out.Method,
+			Password:     passage.Out.Password,
+			IsClient:     true,
+			Flags:        protocol.Flags_VMess_UsePacketAddr,
 		})
 		if err != nil {
 			return err

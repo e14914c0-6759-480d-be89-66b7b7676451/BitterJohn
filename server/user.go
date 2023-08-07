@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	"time"
+
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 )
 
 type PassageUse string
@@ -23,8 +24,8 @@ var (
 )
 
 type Passage struct {
-	Manager bool
 	model.Passage
+	Manager bool
 }
 
 func (p *Passage) Use() (use PassageUse) {

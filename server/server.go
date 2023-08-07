@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
-	"github.com/mzz2017/softwind/netproxy"
 	"io"
 	"strconv"
 	"time"

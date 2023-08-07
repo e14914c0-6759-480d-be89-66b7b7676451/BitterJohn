@@ -2,16 +2,17 @@ package shadowsocks
 
 import (
 	"context"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
-	disk_bloom "github.com/mzz2017/disk-bloom"
-	"golang.org/x/net/proxy"
 	"hash/fnv"
 	"sort"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/daeuniverse/softwind/protocol/direct"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+	disk_bloom "github.com/mzz2017/disk-bloom"
 )
 
 func getState(s *Server, key string) (list []string) {
@@ -127,7 +128,7 @@ func TestServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svr, err := New(context.WithValue(context.Background(), "bloom", bloom), proxy.Direct)
+	svr, err := New(context.WithValue(context.Background(), "bloom", bloom), direct.SymmetricDirect)
 	if err != nil {
 		t.Fatal(err)
 	}

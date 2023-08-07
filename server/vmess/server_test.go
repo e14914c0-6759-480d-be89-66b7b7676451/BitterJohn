@@ -2,21 +2,22 @@ package vmess
 
 import (
 	"context"
+	"net"
+	"testing"
+
+	proto "github.com/daeuniverse/softwind/pkg/gun_proto"
+	"github.com/daeuniverse/softwind/protocol/direct"
+	"github.com/daeuniverse/softwind/protocol/vmess"
+	grpc2 "github.com/daeuniverse/softwind/transport/grpc"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
-	proto "github.com/mzz2017/softwind/pkg/gun_proto"
-	"github.com/mzz2017/softwind/protocol/vmess"
-	grpc2 "github.com/mzz2017/softwind/transport/grpc"
-	"golang.org/x/net/proxy"
 	"google.golang.org/grpc"
-	"net"
-	"testing"
 )
 
 func TestServer(t *testing.T) {
 	doubleCuckoo := vmess.NewReplayFilter(120)
-	svr, err := New(context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo), proxy.Direct)
+	svr, err := New(context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo), direct.SymmetricDirect)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestServer(t *testing.T) {
 func TestGrpcServer(t *testing.T) {
 	log.SetLogLevel("trace")
 	doubleCuckoo := vmess.NewReplayFilter(120)
-	svr, err := New(context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo), proxy.Direct)
+	svr, err := New(context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo), direct.SymmetricDirect)
 	if err != nil {
 		t.Fatal(err)
 	}

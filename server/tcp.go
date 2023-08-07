@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/mzz2017/softwind/netproxy"
-	io2 "github.com/mzz2017/softwind/pkg/zeroalloc/io"
+	"github.com/daeuniverse/softwind/netproxy"
+	io2 "github.com/daeuniverse/softwind/pkg/zeroalloc/io"
 	"time"
 )
 

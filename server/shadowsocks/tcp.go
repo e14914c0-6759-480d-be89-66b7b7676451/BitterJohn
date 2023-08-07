@@ -4,6 +4,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"time"
+
+	"github.com/daeuniverse/softwind/ciphers"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/daeuniverse/softwind/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/bufferred_conn"
@@ -11,14 +20,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/mzz2017/softwind/ciphers"
-	"github.com/mzz2017/softwind/pool"
-	"github.com/mzz2017/softwind/protocol"
-	"github.com/mzz2017/softwind/protocol/shadowsocks"
-	"io"
-	"net"
-	"strconv"
-	"time"
 )
 
 const (
@@ -148,12 +149,11 @@ func (s *Server) handleTCP(conn net.Conn) error {
 	if passage.Out != nil {
 		sni, _ := common.HostToSNI(passage.Out.Host, s.sweetLisa.Host)
 		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, protocol.Header{
-			ProxyAddress:    net.JoinHostPort(passage.Out.Host, passage.Out.Port),
-			SNI:             sni,
-			GrpcServiceName: common.SimplyGetParam(passage.Out.Method, "serviceName"),
-			Cipher:          passage.Out.Method,
-			Password:        passage.Out.Password,
-			IsClient:        true,
+			ProxyAddress: net.JoinHostPort(passage.Out.Host, passage.Out.Port),
+			SNI:          sni,
+			Cipher:       passage.Out.Method,
+			Password:     passage.Out.Password,
+			IsClient:     true,
 		})
 		if err != nil {
 			return err

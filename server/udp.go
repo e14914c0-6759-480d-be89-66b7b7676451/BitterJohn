@@ -1,13 +1,13 @@
 package server
 
 import (
-	"github.com/mzz2017/softwind/netproxy"
+	"github.com/daeuniverse/softwind/netproxy"
 	"net"
 	"net/netip"
 	"time"
 
+	"github.com/daeuniverse/softwind/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
-	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/net/dns/dnsmessage"
 )
 

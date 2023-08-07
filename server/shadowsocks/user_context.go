@@ -1,9 +1,9 @@
 package shadowsocks
 
 import (
+	"github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lrulist"
-	"github.com/mzz2017/softwind/pkg/fastrand"
 	"time"
 )
 

@@ -1,12 +1,12 @@
 package bufferred_conn
 
 import (
-	"github.com/mzz2017/softwind/pkg/zeroalloc/bufio"
+	"github.com/daeuniverse/softwind/pkg/zeroalloc/bufio"
 	"net"
 )
 
 type BufferedConn struct {
-	r             *bufio.Reader
+	r        *bufio.Reader
 	net.Conn // So that most methods are embedded
 }
 

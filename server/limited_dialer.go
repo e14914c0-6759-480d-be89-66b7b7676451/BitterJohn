@@ -3,10 +3,10 @@ package server
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
-	"github.com/mzz2017/softwind/netproxy"
-	"github.com/mzz2017/softwind/pool"
 	"golang.org/x/net/dns/dnsmessage"
 	"io"
 	"net"
