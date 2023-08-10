@@ -80,16 +80,12 @@ func (s *Server) Serve(addr string) (err error) {
 	quicMaxOpenIncomingStreams := int64(s.maxOpenIncomingStreams)
 
 	listener, err := quic.ListenAddr(addr, s.tlsConfig, &quic.Config{
-		InitialStreamReceiveWindow:     common.InitialStreamReceiveWindow,
-		MaxStreamReceiveWindow:         common.MaxStreamReceiveWindow,
-		InitialConnectionReceiveWindow: common.InitialConnectionReceiveWindow,
-		MaxConnectionReceiveWindow:     common.MaxConnectionReceiveWindow,
-		MaxIncomingStreams:             quicMaxOpenIncomingStreams,
-		MaxIncomingUniStreams:          quicMaxOpenIncomingStreams,
-		KeepAlivePeriod:                10 * time.Second,
-		DisablePathMTUDiscovery:        false,
-		EnableDatagrams:                false,
-		CapabilityCallback:             nil,
+		MaxIncomingStreams:      quicMaxOpenIncomingStreams,
+		MaxIncomingUniStreams:   quicMaxOpenIncomingStreams,
+		KeepAlivePeriod:         10 * time.Second,
+		DisablePathMTUDiscovery: false,
+		EnableDatagrams:         false,
+		CapabilityCallback:      nil,
 	})
 	if err != nil {
 		return err

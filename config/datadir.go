@@ -1,10 +1,11 @@
 package config
 
 import (
-	"github.com/adrg/xdg"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"os"
 	"path/filepath"
+
+	"github.com/adrg/xdg"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 )
 
 func DataFile(filename string) (string, error) {
@@ -12,7 +13,7 @@ func DataFile(filename string) (string, error) {
 	fullPath, err := xdg.SearchDataFile(relPath)
 	if err != nil {
 		if os.Geteuid() == 0 {
-			return "/etc/BitterJohn", nil
+			return filepath.Join("/etc/BitterJohn", filename), nil
 		}
 		log.Info("%v", err)
 		fullPath, err = xdg.DataFile(relPath)

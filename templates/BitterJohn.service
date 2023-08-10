@@ -18,7 +18,7 @@ User=root
 Restart=always
 RestartSec=5s
 LimitNOFILE=102400
-Environment="GODEBUG=madvdontneed=1"
+Environment="QUIC_GO_ENABLE_GSO=1"
 ExecStart={{.Bin}} run --log-disable-timestamp{{range .Args}} {{.}}{{end}}
 
 [Install]

@@ -14,7 +14,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
-	copyCert "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copy_cert"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
@@ -59,13 +58,11 @@ type Passage struct {
 }
 
 func NewJohn(valueCtx context.Context, dialer netproxy.Dialer, sweetLisa config.Lisa, arg server.Argument) (server.Server, error) {
-	c, k, err := copyCert.Copy(Domain + ":443")
-	if err != nil {
-		return nil, err
-	}
+	cert := valueCtx.Value("certificate").([]byte)
+	key := valueCtx.Value("key").([]byte)
 	s, err := New(&Options{
-		Certificate:       c,
-		PrivateKey:        k,
+		Certificate:       cert,
+		PrivateKey:        key,
 		CongestionControl: "bbr",
 		SendThrough:       "",
 	})
@@ -75,7 +72,7 @@ func NewJohn(valueCtx context.Context, dialer netproxy.Dialer, sweetLisa config.
 	john := s
 	john.sweetLisa = sweetLisa
 	john.arg = arg
-	john.pinnedCertchainSha256, err = common.GenerateCertChainHashFromBytes(c)
+	john.pinnedCertchainSha256, err = common.GenerateCertChainHashFromBytes(cert)
 	if err != nil {
 		return nil, err
 	}

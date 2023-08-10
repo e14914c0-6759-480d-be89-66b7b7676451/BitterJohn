@@ -1,4 +1,4 @@
-package copyCert
+package copy_cert
 
 import (
 	"bytes"

@@ -4,6 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
+
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/pkg/fastrand"
 	"github.com/daeuniverse/softwind/protocol"
@@ -13,20 +21,15 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/cdn_validator"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copy_cert"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/disk_bloom"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/resolver"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server/juicity"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"net"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"sync/atomic"
-	"time"
 )
 
 const (
@@ -92,6 +95,35 @@ func Run() (err error) {
 	case protocol.ProtocolVMessTCP, protocol.ProtocolVMessTlsGrpc:
 		doubleCuckoo := vmess.NewReplayFilter(120)
 		ctx = context.WithValue(context.Background(), "doubleCuckoo", doubleCuckoo)
+		dialer = server.FullconePrivateLimitedDialer
+	case protocol.ProtocolJuicity:
+		var errs []error
+		crtPath, err := config.DataFile(juicity.Domain + "_443.crt")
+		errs = append(errs, err)
+		keyPath, err := config.DataFile(juicity.Domain + "_443.key")
+		errs = append(errs, err)
+		if err = errors.Join(errs...); err != nil {
+			return err
+		}
+		errs = errs[:0]
+		crt, err := os.ReadFile(crtPath)
+		errs = append(errs, err)
+		key, err := os.ReadFile(keyPath)
+		errs = append(errs, err)
+		if err = errors.Join(errs...); err != nil {
+			crt, key, err = copy_cert.Copy(juicity.Domain + ":443")
+			if err != nil {
+				return err
+			}
+			if err = os.WriteFile(crtPath, crt, 0600); err != nil {
+				return err
+			}
+			if err = os.WriteFile(keyPath, key, 0600); err != nil {
+				return err
+			}
+		}
+		ctx = context.WithValue(context.Background(), "certificate", crt)
+		ctx = context.WithValue(ctx, "key", key)
 		dialer = server.FullconePrivateLimitedDialer
 	}
 
