@@ -7,14 +7,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/daeuniverse/softwind/pkg/fastrand"
-	"github.com/daeuniverse/softwind/protocol"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copyfile"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
-	"github.com/spf13/cobra"
 	"net"
 	"net/http"
 	"os"
@@ -25,6 +17,15 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/daeuniverse/softwind/pkg/fastrand"
+	"github.com/daeuniverse/softwind/protocol"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copyfile"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -235,7 +236,7 @@ func getParams(targetConfigPath string) (*config.Params, bool, error) {
 	if err := survey.AskOne(&survey.Select{
 		Message: "Portocol:",
 		Default: "vmess+tls+grpc",
-		Options: []string{"vmess", "vmess+tls+grpc", "shadowsocks"},
+		Options: []string{"vmess", "vmess+tls+grpc", "shadowsocks", "juicity"},
 	}, &proto, survey.WithValidator(survey.Required)); err != nil {
 		return nil, false, err
 	}

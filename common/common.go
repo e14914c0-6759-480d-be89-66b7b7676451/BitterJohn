@@ -3,9 +3,11 @@ package common
 import (
 	crand "crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
-	"github.com/eknkc/basex"
 	"hash/fnv"
 	"math"
 	"math/big"
@@ -18,6 +20,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/eknkc/basex"
 )
 
 const Alphabet = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM0123456789"
@@ -271,4 +275,33 @@ func SimplyGetParam(source string, key string) (value string) {
 		}
 	}
 	return ""
+}
+
+func GenerateCertChainHash(rawCerts [][]byte) (chainHash []byte) {
+	for _, cert := range rawCerts {
+		certHash := sha256.Sum256(cert)
+		if chainHash == nil {
+			chainHash = certHash[:]
+		} else {
+			newHash := sha256.Sum256(append(chainHash, certHash[:]...))
+			chainHash = newHash[:]
+		}
+	}
+	return chainHash
+}
+
+func GenerateCertChainHashFromBytes(b []byte) (string, error) {
+	var rawCerts [][]byte
+	for {
+		block, rest := pem.Decode(b)
+		if block == nil {
+			break
+		}
+		rawCerts = append(rawCerts, block.Bytes)
+		b = rest
+	}
+	if len(rawCerts) == 0 {
+		return "", fmt.Errorf("not a valid certificate")
+	}
+	return base64.URLEncoding.EncodeToString(GenerateCertChainHash(rawCerts)), nil
 }

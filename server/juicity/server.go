@@ -1,86 +1,89 @@
-package shadowsocks
+package juicity
 
 import (
 	"context"
-	"errors"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/daeuniverse/softwind/ciphers"
-	common2 "github.com/daeuniverse/softwind/common"
 	"github.com/daeuniverse/softwind/netproxy"
-	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol"
-	"github.com/daeuniverse/softwind/protocol/shadowsocks"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/api"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/lru"
+	copyCert "github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/copy_cert"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/log"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa/model"
+	"github.com/google/uuid"
 	gonanoid "github.com/matoous/go-nanoid"
-	disk_bloom "github.com/mzz2017/disk-bloom"
 )
 
 func init() {
-	server.Register("shadowsocks", NewJohn)
-	shadowsocks.DefaultSaltGeneratorType = shadowsocks.IodizedSaltGeneratorType
+	server.Register("juicity", NewJohn)
 }
 
+const (
+	ManagerUuid = "00000000-0000-0000-0000-000000000000"
+	Domain      = "software.download.prss.microsoft.com"
+)
+
 type Server struct {
-	closed    chan struct{}
-	sweetLisa config.Lisa
-	typ       string
-	arg       server.Argument
-	lastAlive time.Time
+	dialer                 netproxy.Dialer
+	tlsConfig              *tls.Config
+	maxOpenIncomingStreams int64
+	congestionControl      string
+	cwnd                   int
+	users                  sync.Map
+
+	sweetLisa             config.Lisa
+	arg                   server.Argument
+	pinnedCertchainSha256 string
 	// mutex protects passages
-	mutex           sync.Mutex
-	passages        []Passage
-	userContextPool *UserContextPool
-	listener        net.Listener
-	udpConn         *net.UDPConn
-	nm              *UDPConnMapping
+	mutex    sync.Mutex
+	passages []Passage
 	// passageContentionCache log the last client IP of passages
 	passageContentionCache *server.ContentionCache
-
-	bloom  *disk_bloom.FilterGroup
-	dialer netproxy.Dialer
+	lastAlive              time.Time
+	ctx                    context.Context
+	close                  func()
+	listener               net.Listener
 }
 
 type Passage struct {
 	server.Passage
-	inMasterKey []byte
-}
-
-func New(valueCtx context.Context, dialer netproxy.Dialer) (server.Server, error) {
-	bloom := valueCtx.Value("bloom").(*disk_bloom.FilterGroup)
-	s := &Server{
-		userContextPool: (*UserContextPool)(lru.New(lru.FixedTimeout, int64(1*time.Hour))),
-		nm:              NewUDPConnMapping(),
-		closed:          make(chan struct{}),
-		bloom:           bloom,
-		dialer:          dialer,
-	}
-	return s, nil
+	uuid uuid.UUID
 }
 
 func NewJohn(valueCtx context.Context, dialer netproxy.Dialer, sweetLisa config.Lisa, arg server.Argument) (server.Server, error) {
-	s, err := New(valueCtx, dialer)
+	c, k, err := copyCert.Copy(Domain + ":443")
 	if err != nil {
 		return nil, err
 	}
-	john := s.(*Server)
+	s, err := New(&Options{
+		Certificate:       c,
+		PrivateKey:        k,
+		CongestionControl: "bbr",
+		SendThrough:       "",
+	})
+	if err != nil {
+		return nil, err
+	}
+	john := s
 	john.sweetLisa = sweetLisa
 	john.arg = arg
+	john.pinnedCertchainSha256, err = common.GenerateCertChainHashFromBytes(c)
+	if err != nil {
+		return nil, err
+	}
 	john.passageContentionCache = server.NewContentionCache()
 	if err := s.AddPassages([]server.Passage{{Manager: true}}); err != nil {
 		return nil, err
 	}
+	john.ctx, john.close = context.WithCancel(context.Background())
 
 	// connect to SweetLisa and register
 	if err := john.register(); err != nil {
@@ -95,7 +98,7 @@ func (s *Server) registerBackground() {
 	ticker := time.NewTicker(interval)
 	for {
 		select {
-		case <-s.closed:
+		case <-s.ctx.Done():
 			ticker.Stop()
 			log.Debug("Server was closed")
 			return
@@ -108,7 +111,7 @@ func (s *Server) registerBackground() {
 			if err := s.register(); err != nil {
 				// binary exponential backoff algorithm
 				// to avoid DDoS
-				interval = interval * 2
+				interval *= 2
 				if interval > 600*time.Second {
 					interval = 600 * time.Second
 				}
@@ -148,9 +151,10 @@ func (s *Server) register() error {
 		Hosts:  s.arg.Hostnames,
 		Port:   s.arg.Port,
 		Argument: model.Argument{
-			Protocol: protocol.ProtocolShadowsocks,
+			Protocol: protocol.ProtocolJuicity,
+			Username: manager.In.Username,
 			Password: manager.In.Password,
-			Method:   manager.In.Method,
+			Method:   "pinned_certchain_sha256=" + s.pinnedCertchainSha256,
 		},
 		BandwidthLimit: bandwidthLimit,
 		NoRelay:        s.arg.NoRelay,
@@ -171,103 +175,24 @@ func (s *Server) SyncPassages(passages []server.Passage) (err error) {
 	return server.SyncPassages(s, passages)
 }
 
-func (s *Server) ListenTCP(addr string) (err error) {
-	lt, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-	s.listener = lt
-	for {
-		conn, err := lt.Accept()
-		if err != nil {
-			log.Warn("%v", err)
-		}
-		go func() {
-			err := s.handleTCP(conn)
-			if err != nil {
-				if errors.Is(err, server.ErrPassageAbuse) ||
-					errors.Is(err, protocol.ErrReplayAttack) {
-					log.Warn("handleTCP: %v", err)
-				} else {
-					log.Info("handleTCP: %v", err)
-				}
-			}
-		}()
-	}
-}
-
-func (s *Server) ListenUDP(addr string) (err error) {
-	_, strPort, err := net.SplitHostPort(addr)
-	if err != nil {
-		return err
-	}
-	port, err := strconv.Atoi(strPort)
-	if err != nil {
-		return err
-	}
-
-	lu, err := net.ListenUDP("udp", &net.UDPAddr{Port: port})
-	if err != nil {
-		return err
-	}
-	s.udpConn = lu
-	var buf [ip_mtu_trie.MTU]byte
-	for {
-		n, lAddr, err := lu.ReadFrom(buf[:])
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) {
-				return nil
-			}
-			log.Warn("ReadFrom: %v", err)
-			continue
-		}
-		data := pool.Get(n)
-		copy(data, buf[:n])
-		go func() {
-			err := s.handleUDP(lAddr, data)
-			if err != nil {
-				log.Warn("handleUDP: %v", err)
-			}
-			pool.Put(data)
-		}()
-	}
-}
-
 func (s *Server) Listen(addr string) (err error) {
-	eCh := make(chan error, 2)
-	go func() {
-		e := s.ListenUDP(addr)
-		eCh <- e
-	}()
-	go func() {
-		e := s.ListenTCP(addr)
-		eCh <- e
-	}()
-	defer s.Close()
-	return <-eCh
+	return s.Serve(addr)
 }
 
 func (s *Server) Close() error {
-	close(s.closed)
-	var err error
+	s.close()
 	if s.listener != nil {
-		err = s.listener.Close()
+		return s.listener.Close()
 	}
-	if s.udpConn != nil {
-		err2 := s.udpConn.Close()
-		if err == nil {
-			err = err2
-		}
-	}
-	return err
+	return nil
 }
 
 func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passage) {
 	psgs = make([]Passage, len(passages))
 	for i, psg := range passages {
 		if psg.Manager {
-			psg.In.Password, _ = gonanoid.Generate(common.Alphabet, 21)
-			psg.In.Method = "aes-256-gcm"
+			psg.In.Username = ManagerUuid
+			psg.In.Password, _ = gonanoid.Generate(common.Alphabet, 23)
 			// allow only one manager
 			if manager == nil {
 				manager = &psgs[i]
@@ -277,10 +202,7 @@ func LocalizePassages(passages []server.Passage) (psgs []Passage, manager *Passa
 			}
 		}
 		psgs[i].Passage = psg
-		if psgs[i].In.Method == "" {
-			psgs[i].In.Method = "chacha20-ietf-poly1305"
-		}
-		psgs[i].inMasterKey = common2.EVPBytesToKey(psg.In.Password, ciphers.AeadCiphersConf[psg.In.Method].KeyLen)
+		psgs[i].uuid, _ = uuid.Parse(psg.In.Username)
 	}
 	return psgs, manager
 }
@@ -332,33 +254,17 @@ func (s *Server) Passages() (passages []server.Passage) {
 func (s *Server) addPassages(passages []Passage) {
 	s.passages = append(s.passages, passages...)
 
-	var vals []interface{}
 	for i := range passages {
-		vals = append(vals, &passages[i])
-	}
-	socketIdents := s.userContextPool.Infra().GetKeys()
-	for _, ident := range socketIdents {
-		userContext := s.userContextPool.Infra().Get(ident).(*UserContext).Infra()
-		userContext.Insert(vals)
+		s.users.Store(s.passages[i].uuid, &s.passages[i])
 	}
 }
 
 func (s *Server) removePassagesFunc(f func(passage *Passage) (remove bool)) {
 	for i := len(s.passages) - 1; i >= 0; i-- {
 		if f(&s.passages[i]) {
+			s.users.Delete(s.passages[i].uuid)
 			s.passages = append(s.passages[:i], s.passages[i+1:]...)
 		}
-	}
-	socketIdents := s.userContextPool.Infra().GetKeys()
-	for _, ident := range socketIdents {
-		userContext := s.userContextPool.Infra().Get(ident).(*UserContext).Infra()
-		listCopy := userContext.GetListCopy()
-		for _, node := range listCopy {
-			if f(node.Val.(*Passage)) {
-				userContext.Remove(node)
-			}
-		}
-		userContext.DestroyListCopy(listCopy)
 	}
 }
 
