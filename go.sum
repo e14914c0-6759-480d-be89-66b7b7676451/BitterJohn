@@ -98,6 +98,8 @@ github.com/dgryski/go-metro v0.0.0-20211217172704-adc40b04c140 h1:y7y0Oa6UawqTFP
 github.com/dgryski/go-metro v0.0.0-20211217172704-adc40b04c140/go.mod h1:c9O8+fpSOX1DM8cPNSkX/qsBWdkD4yd2dpciOWQjpBw=
 github.com/dgryski/go-rc2 v0.0.0-20150621095337-8a9021637152 h1:ED31mPIxDJnrLt9W9dH5xgd/6KjzEACKHBVGQ33czc0=
 github.com/dgryski/go-rc2 v0.0.0-20150621095337-8a9021637152/go.mod h1:I9fhc/EvSg88cDxmfQ47v35Ssz9rlFunL/KY0A1JAYI=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20230810190134-ef6d4f70e6c7 h1:OD6dY0sn7cVZXx8REUYJO2VaoisRV5/xLCARUyZCzp0=
+github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20230810190134-ef6d4f70e6c7/go.mod h1:+2K9buYAgJoF6XMgDqFR7JZ/pEFiNPgL8cgI+TyvTLc=
 github.com/ebfe/rc2 v0.0.0-20131011165748-24b9757f5521 h1:fBHFH+Y/GPGFGo7LIrErQc3p2MeAhoIQNgaxPWYsSxk=
 github.com/eknkc/basex v1.0.1 h1:TcyAkqh4oJXgV3WYyL4KEfCMk9W8oJCpmx1bo+jVgKY=
 github.com/eknkc/basex v1.0.1/go.mod h1:k/F/exNEHFdbs3ZHuasoP2E7zeWwZblG84Y7Z59vQRo=

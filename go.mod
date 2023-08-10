@@ -8,7 +8,7 @@ require (
 	github.com/adrg/xdg v0.4.0
 	github.com/cloudflare/cloudflare-go v0.26.0
 	github.com/daeuniverse/softwind v0.0.0-20230810185748-71d50728dece
-	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20230807150702-a8f033fff2ae
+	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20230810190134-ef6d4f70e6c7
 	github.com/eknkc/basex v1.0.1
 	github.com/google/uuid v1.3.0
 	github.com/json-iterator/go v1.1.12
@@ -85,6 +85,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa
+// replace github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa => ../SweetLisa
 
 // replace github.com/daeuniverse/softwind => ../softwind
