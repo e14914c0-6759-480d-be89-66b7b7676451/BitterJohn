@@ -1,10 +1,11 @@
 package server
 
 import (
-	"github.com/daeuniverse/softwind/netproxy"
 	"net"
 	"net/netip"
 	"time"
+
+	"github.com/daeuniverse/softwind/netproxy"
 
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/infra/ip_mtu_trie"
@@ -14,6 +15,7 @@ import (
 const (
 	DefaultNatTimeout = 3 * time.Minute
 	DnsQueryTimeout   = 17 * time.Second // RFC 5452
+	DialTimeout       = 10 * time.Second
 )
 
 // SelectTimeout selects an appropriate timeout for UDP packet.

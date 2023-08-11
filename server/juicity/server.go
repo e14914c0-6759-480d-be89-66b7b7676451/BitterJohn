@@ -27,7 +27,6 @@ func init() {
 
 const (
 	ManagerUuid = "00000000-0000-0000-0000-000000000000"
-	Domain      = "software.download.prss.microsoft.com"
 )
 
 type Server struct {
@@ -234,6 +233,9 @@ func (s *Server) RemovePassages(passages []server.Passage, alsoManager bool) (er
 	}
 	s.removePassagesFunc(func(passage *Passage) (remove bool) {
 		_, ok := keySet[passage.In.Argument.Hash()]
+		if ok {
+			log.Trace("RemovePassage: From: %v", passage.In.From)
+		}
 		return ok
 	})
 	return nil
@@ -252,7 +254,7 @@ func (s *Server) addPassages(passages []Passage) {
 	s.passages = append(s.passages, passages...)
 
 	for i := range passages {
-		s.users.Store(s.passages[i].uuid, &s.passages[i])
+		s.users.Store(passages[i].uuid, &passages[i])
 	}
 }
 

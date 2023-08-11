@@ -10,7 +10,11 @@ import (
 	"time"
 )
 
-const LostThreshold = 5 * time.Minute
+const (
+	LostThreshold = 5 * time.Minute
+
+	JuicityDomain = "software.download.prss.microsoft.com"
+)
 
 var (
 	ErrPassageAbuse = fmt.Errorf("passage abuse")

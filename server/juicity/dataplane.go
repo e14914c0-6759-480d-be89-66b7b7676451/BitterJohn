@@ -152,22 +152,42 @@ func (s *Server) handleStream(ctx context.Context, authCtx context.Context, id *
 	default:
 	}
 	// detect passage contention
-	passage, ok := s.users.Load(*id)
+	_passage, ok := s.users.Load(*id)
 	if !ok {
 		return fmt.Errorf("no such user: %v", *id)
 	}
-	psg := passage.(*Passage)
-	if err := s.ContentionCheck(conn.RemoteAddr().(*net.UDPAddr).IP, psg); err != nil {
+	passage := _passage.(*Passage)
+	if err := s.ContentionCheck(conn.RemoteAddr().(*net.UDPAddr).IP, passage); err != nil {
 		return err
 	}
 	mdata := lConn.Metadata
 	if mdata.Type == protocol.MetadataTypeMsg {
-		return s.handleMsg(lConn, mdata, psg)
+		return s.handleMsg(lConn, mdata, passage)
 	}
+	// manager should not come to this line
+	if passage.Manager {
+		return fmt.Errorf("%w: manager key is ubused for a non-cmd connection", server.ErrPassageAbuse)
+	}
+	dialer := s.dialer
+	if passage.Out != nil {
+		header, err := server.GetHeader(*passage.Out, &s.sweetLisa)
+		if err != nil {
+			return err
+		}
+		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, *header)
+		if err != nil {
+			return err
+		}
+	}
+	target := net.JoinHostPort(mdata.Hostname, strconv.Itoa(int(mdata.Port)))
+	d := &netproxy.ContextDialerConverter{
+		Dialer: dialer,
+	}
+	ctx, cancel := context.WithTimeout(ctx, server.DialTimeout)
+	defer cancel()
 	switch mdata.Network {
 	case "tcp":
-		target := net.JoinHostPort(mdata.Hostname, strconv.Itoa(int(mdata.Port)))
-		rConn, err := s.dialer.Dial("tcp", target)
+		rConn, err := d.DialContext(ctx, "tcp", target)
 		if err != nil {
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
@@ -195,7 +215,7 @@ func (s *Server) handleStream(ctx context.Context, authCtx context.Context, id *
 			return fmt.Errorf("ReadFrom: %w", err)
 		}
 
-		c, err := s.dialer.Dial("udp", addr.String())
+		c, err := d.DialContext(ctx, "udp", addr.String())
 		if err != nil {
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {

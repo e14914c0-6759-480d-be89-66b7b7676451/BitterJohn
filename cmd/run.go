@@ -27,7 +27,6 @@ import (
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/resolver"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/pkg/viper_tool"
 	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/server/juicity"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -98,9 +97,9 @@ func Run() (err error) {
 		dialer = server.FullconePrivateLimitedDialer
 	case protocol.ProtocolJuicity:
 		var errs []error
-		crtPath, err := config.DataFile(juicity.Domain + "_443.crt")
+		crtPath, err := config.DataFile(server.JuicityDomain + "_443.crt")
 		errs = append(errs, err)
-		keyPath, err := config.DataFile(juicity.Domain + "_443.key")
+		keyPath, err := config.DataFile(server.JuicityDomain + "_443.key")
 		errs = append(errs, err)
 		if err = errors.Join(errs...); err != nil {
 			return err
@@ -111,7 +110,7 @@ func Run() (err error) {
 		key, err := os.ReadFile(keyPath)
 		errs = append(errs, err)
 		if err = errors.Join(errs...); err != nil {
-			crt, key, err = copy_cert.Copy(juicity.Domain + ":443")
+			crt, key, err = copy_cert.Copy(server.JuicityDomain + ":443")
 			if err != nil {
 				return err
 			}

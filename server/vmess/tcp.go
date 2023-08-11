@@ -2,6 +2,7 @@ package vmess
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/daeuniverse/softwind/netproxy"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
 
 	"github.com/daeuniverse/softwind/pool"
 	"github.com/daeuniverse/softwind/protocol"
@@ -75,23 +75,23 @@ func (s *Server) handleConn(conn net.Conn) error {
 	// Dial and relay
 	dialer := s.dialer
 	if passage.Out != nil {
-		sni, _ := common.HostToSNI(passage.Out.Host, s.sweetLisa.Host)
-		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, protocol.Header{
-			ProxyAddress: net.JoinHostPort(passage.Out.Host, passage.Out.Port),
-			SNI:          sni,
-			Feature1:     common.SimplyGetParam(passage.Out.Method, "serviceName"),
-			Cipher:       passage.Out.Method,
-			Password:     passage.Out.Password,
-			IsClient:     true,
-			Flags:        protocol.Flags_VMess_UsePacketAddr,
-		})
+		header, err := server.GetHeader(*passage.Out, &s.sweetLisa)
+		if err != nil {
+			return err
+		}
+		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, *header)
 		if err != nil {
 			return err
 		}
 	}
+	d := &netproxy.ContextDialerConverter{
+		Dialer: dialer,
+	}
+	ctx, cancel := context.WithTimeout(context.TODO(), server.DialTimeout)
+	defer cancel()
 	switch targetMetadata.Network {
 	case "tcp":
-		rConn, err := dialer.Dial("tcp", target)
+		rConn, err := d.DialContext(ctx, "tcp", target)
 		if err != nil {
 			var netErr net.Error
 			if errors.As(err, &netErr) && netErr.Timeout() {
@@ -111,7 +111,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 	case "udp":
 		log.Debug("vmess received a udp request")
 		// can dial any target
-		if err = relayUoT(dialer, lConn); err != nil {
+		if err = relayUoT(ctx, d, lConn); err != nil {
 			var netErr net.Error
 			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
 				return nil // ignore i/o timeout
@@ -247,7 +247,7 @@ func relayConnToUDP(dst netproxy.PacketConn, src *vmess.Conn, timeout time.Durat
 	}
 }
 
-func relayUoT(rDialer netproxy.Dialer, lConn *vmess.Conn) (err error) {
+func relayUoT(dialCtx context.Context, rDialer netproxy.ContextDialer, lConn *vmess.Conn) (err error) {
 	buf := pool.Get(vmess.MaxUDPSize)
 	defer pool.Put(buf)
 	lConn.SetReadDeadline(time.Now().Add(server.DefaultNatTimeout))
@@ -255,7 +255,7 @@ func relayUoT(rDialer netproxy.Dialer, lConn *vmess.Conn) (err error) {
 	if err != nil {
 		return
 	}
-	conn, err := rDialer.Dial("udp", addr.String())
+	conn, err := rDialer.DialContext(dialCtx, "udp", addr.String())
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
