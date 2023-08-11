@@ -3,16 +3,17 @@ package server
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/daeuniverse/softwind/netproxy"
-	"github.com/daeuniverse/softwind/pool"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
-	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
-	"golang.org/x/net/dns/dnsmessage"
 	"io"
 	"net"
 	"net/netip"
 	"strings"
 	"syscall"
+
+	"github.com/daeuniverse/softwind/netproxy"
+	"github.com/daeuniverse/softwind/pool"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/common"
+	"github.com/e14914c0-6759-480d-be89-66b7b7676451/BitterJohn/config"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 type ForceNetworkType int
@@ -81,6 +82,11 @@ func (d *PrivateLimitedDialer) DialUdp(addr string) (netproxy.PacketConn, error)
 }
 
 func (d *PrivateLimitedDialer) Dial(network, addr string) (c netproxy.Conn, err error) {
+	mn, err := netproxy.ParseMagicNetwork(network)
+	if err != nil {
+		return nil, err
+	}
+	network = mn.Network
 	switch {
 	case strings.HasPrefix(network, "tcp"):
 		switch d.forceNetwork {
