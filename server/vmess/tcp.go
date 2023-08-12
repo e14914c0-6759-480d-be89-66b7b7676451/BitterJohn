@@ -111,7 +111,33 @@ func (s *Server) handleConn(conn net.Conn) error {
 	case "udp":
 		log.Debug("vmess received a udp request")
 		// can dial any target
-		if err = relayUoT(ctx, d, lConn); err != nil {
+		buf := pool.GetFullCap(vmess.MaxUDPSize)
+		defer pool.Put(buf)
+		_ = lConn.SetReadDeadline(time.Now().Add(server.DefaultNatTimeout))
+		n, addr, err := lConn.ReadFrom(buf)
+		if err != nil {
+			return fmt.Errorf("ReadFrom: %w", err)
+		}
+		log.Debug("vmess dial udp to %v, write to %v", target, addr)
+
+		c, err := d.DialContext(ctx, "udp", addr.String())
+		if err != nil {
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				return nil // ignore i/o timeout
+			}
+			return fmt.Errorf("Dial: %w", err)
+		}
+		rConn := c.(netproxy.PacketConn)
+		_ = rConn.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
+		_, err = rConn.WriteTo(buf[:n], addr.String())
+		if err != nil {
+			if errors.Is(err, net.ErrWriteToConnected) {
+				log.Error("relayConnToUDP: %v", err)
+			}
+			return fmt.Errorf("WriteTo: %w", err)
+		}
+		if err = relayUoT(rConn, lConn); err != nil {
 			var netErr net.Error
 			if errors.Is(err, io.EOF) || (errors.As(err, &netErr) && netErr.Timeout()) {
 				return nil // ignore i/o timeout
@@ -247,32 +273,7 @@ func relayConnToUDP(dst netproxy.PacketConn, src *vmess.Conn, timeout time.Durat
 	}
 }
 
-func relayUoT(dialCtx context.Context, rDialer netproxy.ContextDialer, lConn *vmess.Conn) (err error) {
-	buf := pool.Get(vmess.MaxUDPSize)
-	defer pool.Put(buf)
-	lConn.SetReadDeadline(time.Now().Add(server.DefaultNatTimeout))
-	n, addr, err := lConn.ReadFrom(buf)
-	if err != nil {
-		return
-	}
-	conn, err := rDialer.DialContext(dialCtx, "udp", addr.String())
-	if err != nil {
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
-			return nil // ignore i/o timeout
-		}
-		return err
-	}
-	rConn := conn.(netproxy.PacketConn)
-	_ = rConn.SetWriteDeadline(time.Now().Add(server.DefaultNatTimeout)) // should keep consistent
-	_, err = rConn.WriteTo(buf[:n], addr.String())
-	if errors.Is(err, net.ErrWriteToConnected) {
-		log.Error("relayConnToUDP: %v", err)
-	}
-	if err != nil {
-		return
-	}
-
+func relayUoT(rConn netproxy.PacketConn, lConn *vmess.Conn) (err error) {
 	eCh := make(chan error, 1)
 	go func() {
 		e := relayConnToUDP(rConn, lConn, server.DefaultNatTimeout)

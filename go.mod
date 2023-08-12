@@ -7,7 +7,7 @@ require (
 	github.com/Masterminds/sprig v2.22.0+incompatible
 	github.com/adrg/xdg v0.4.0
 	github.com/cloudflare/cloudflare-go v0.26.0
-	github.com/daeuniverse/softwind v0.0.0-20230810185748-71d50728dece
+	github.com/daeuniverse/softwind v0.0.0-20230812184754-be18b79aaa16
 	github.com/e14914c0-6759-480d-be89-66b7b7676451/SweetLisa v0.0.0-20230810190134-ef6d4f70e6c7
 	github.com/eknkc/basex v1.0.1
 	github.com/google/uuid v1.3.0
