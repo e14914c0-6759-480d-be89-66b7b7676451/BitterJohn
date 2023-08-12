@@ -79,7 +79,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 		if err != nil {
 			return err
 		}
-		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, *header)
+		dialer, err = server.NewDialer(string(passage.Out.Protocol), dialer, header)
 		if err != nil {
 			return err
 		}

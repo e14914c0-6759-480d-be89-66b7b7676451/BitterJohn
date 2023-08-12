@@ -174,7 +174,7 @@ func (s *Server) handleStream(ctx context.Context, authCtx context.Context, id *
 		if err != nil {
 			return err
 		}
-		dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, *header)
+		dialer, err = server.NewDialer(string(passage.Out.Protocol), dialer, header)
 		if err != nil {
 			return err
 		}

@@ -96,7 +96,7 @@ func (s *Server) GetOrBuildUDPConn(lAddr net.Addr, data []byte) (rc net.PacketCo
 			if err != nil {
 				return nil, nil, nil, "", err
 			}
-			dialer, err = protocol.NewDialer(string(passage.Out.Protocol), dialer, *header)
+			dialer, err = server.NewDialer(string(passage.Out.Protocol), dialer, header)
 			if err != nil {
 				return nil, nil, nil, "", err
 			}
