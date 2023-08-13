@@ -118,7 +118,7 @@ func (s *Server) handleConn(conn net.Conn) error {
 		if err != nil {
 			return fmt.Errorf("ReadFrom: %w", err)
 		}
-		log.Debug("vmess dial udp to %v, write to %v", target, addr)
+		// log.Debug("vmess dial udp to %v, write to %v", target, addr)
 
 		c, err := d.DialContext(ctx, "udp", addr.String())
 		if err != nil {

@@ -1,36 +1,67 @@
 package server
 
 import (
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/daeuniverse/softwind/netproxy"
 	"github.com/daeuniverse/softwind/protocol"
 )
 
+const (
+	evictLifeWindow = 10 * time.Minute
+)
+
+type evictableDialer struct {
+	netproxy.Dialer
+	t *time.Timer
+}
+
 var (
-	dialerMap   = map[string]netproxy.Dialer{}
+	dialerMap   = map[string]*evictableDialer{}
 	muDialerMap sync.Mutex
 )
 
 func NewDialer(name string, nextDialer netproxy.Dialer, header *protocol.Header) (netproxy.Dialer, error) {
-	var err error
 	switch name {
 	case "juicity":
 		// Cache dialer.
+		key := strings.Join([]string{
+			header.ProxyAddress,
+			header.User,
+			header.Password,
+			header.Cipher,
+			header.SNI,
+			strconv.Itoa(int(header.Flags)),
+			header.Feature1,
+		}, ":")
 		muDialerMap.Lock()
-		d, ok := dialerMap[header.ProxyAddress]
+		ed, ok := dialerMap[key]
 		if ok {
+			ed.t.Reset(evictLifeWindow)
 			muDialerMap.Unlock()
 		} else {
-			d, err = protocol.NewDialer(name, nextDialer, *header)
+			dialer, err := protocol.NewDialer(name, nextDialer, *header)
 			if err != nil {
 				muDialerMap.Unlock()
 				return nil, err
 			}
-			dialerMap[header.ProxyAddress] = d
+			ed = &evictableDialer{
+				Dialer: dialer,
+				t: time.AfterFunc(evictLifeWindow, func() {
+					muDialerMap.Lock()
+					if ed, ok := dialerMap[key]; ok && ed == dialer {
+						delete(dialerMap, key)
+					}
+					muDialerMap.Unlock()
+				}),
+			}
+			dialerMap[key] = ed
 			muDialerMap.Unlock()
 		}
-		return d, nil
+		return ed.Dialer, nil
 	default:
 		return protocol.NewDialer(name, nextDialer, *header)
 	}
