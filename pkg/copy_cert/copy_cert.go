@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"slices"
 )
 
 type certPair struct {
@@ -21,7 +22,7 @@ type certPair struct {
 
 func getCertsFromNetwork(addr string) ([]*x509.Certificate, error) {
 	conf := &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: false,
 	}
 	conn, err := tls.Dial("tcp", addr, conf)
 	if err != nil {
@@ -31,19 +32,13 @@ func getCertsFromNetwork(addr string) ([]*x509.Certificate, error) {
 	return conn.ConnectionState().PeerCertificates, nil
 }
 
-func reverse(s []*certPair) {
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-		s[i], s[j] = s[j], s[i]
-	}
-}
-
 func makeCerts(originCerts []*x509.Certificate) ([]*certPair, error) {
 	certs := make([]*certPair, len(originCerts))
 	// the origin order: website cert, intermediate ca, root ca
 	for idx, cert := range originCerts {
 		certs[idx] = &certPair{originCert: cert}
 	}
-	reverse(certs)
+	slices.Reverse(certs)
 
 	for idx, pair := range certs {
 		var pub interface{}
@@ -112,7 +107,7 @@ func Copy(addr string) (c []byte, k []byte, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	reverse(newCerts)
+	slices.Reverse(newCerts)
 
 	var (
 		bundleCerts bytes.Buffer
