@@ -25,6 +25,8 @@ func NewContentionCache() *ContentionCache {
 
 // Check return if the IP should be allowed for the key.
 func (c *ContentionCache) Check(key string, protectTime time.Duration, ip net.IP) (accept bool, conflictIP net.IP) {
+	// Do not limit the different IPs.
+	return true
 	if protectTime == 0 {
 		return true, nil
 	}
